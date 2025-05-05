@@ -127,8 +127,6 @@ dmypy.json
 
 logiq.conf
 
-*.txt
-
 
 /.vscode
 
