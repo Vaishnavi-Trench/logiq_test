@@ -1,0 +1,115 @@
+pipeline {
+    agent any
+
+    environment {
+        REPO_NAME = 'logiq'
+        BRANCH = 'production'  // The branch you want to clone (production in your case)
+        BITBUCKET_CREDENTIALS = 'a292408e-c093-4753-8df3-44444d62279c'  // The credentials ID you set up earlier
+        GOOGLE_APPLICATION_CREDENTIALS = '/var/lib/jenkins/trench-kube-access.json'  // Path to your service account key
+        KUBE_CONTEXT = 'gke_trench-production_us-central1-b_trench-prod'  // Kubernetes cluster context
+        CLUSTER_NAME = 'trench-prod'
+        CLUSTER_ZONE = 'us-central1-b'
+        GCP_PROJECT_NAME = 'trench-production'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    // Clone the repo and checkout the production branch
+                    checkout scm: [
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${BRANCH}"]],  // Use the production branch
+                        userRemoteConfigs: [[
+                            credentialsId: "${BITBUCKET_CREDENTIALS}",
+                            url: "git@bitbucket.org:trenchsecurity/${REPO_NAME}.git"
+                        ]],
+                        extensions: []
+                    ]
+                }
+            }
+        }
+
+        stage('Check Git Tag') {
+            steps {
+                script {
+                    // Use the SSH agent for Git authentication
+                    sshagent([BITBUCKET_CREDENTIALS]) {
+                        // Fetch all tags from the repository
+                        sh 'git fetch --tags'
+
+                        // Get the latest tag in the production branch
+                        def latestTag = sh(script: "git describe --tags --abbrev=0", returnStdout: true).trim()
+
+                        // Read the version from version.py
+                        def versionFromFile = readFile('version.py').split('=')[1].trim().replace('"', '').trim()
+
+                        // Compare the tag from the repository with the version in version.py
+                        if (latestTag != versionFromFile) {
+                            error "Tag mismatch error: Latest Git tag (${latestTag}) does not match version in version.py (${versionFromFile})"
+                        } else {
+                            echo "Tag matches: ${latestTag}"
+                        }
+
+                        // Set the tag for Docker image
+                        env.DOCKER_TAG = latestTag
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image using the Dockerfile with the tag
+                    echo 'Building Docker image...'
+                    sh 'docker build -t gcr.io/trench-production/docker-repo/${REPO_NAME}:${DOCKER_TAG} -f deployment/Dockerfile .'
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Authenticate using service account
+                    echo 'Authenticating to Google Cloud...'
+                    sh 'gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}'
+
+                    // Configure Docker to use Google Cloud credentials
+                    echo 'Configuring Docker to use gcloud credentials...'
+                    sh 'gcloud auth configure-docker'
+
+                    // Push the Docker image to GCR with the tag
+                    echo 'Pushing Docker image to GCR...'
+                    sh 'docker push gcr.io/trench-production/docker-repo/${REPO_NAME}:${DOCKER_TAG}'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    // Authenticate to the Kubernetes cluster using the service account credentials
+                    echo 'Authenticating to the Kubernetes cluster...'
+                    sh 'gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}'
+
+                    // Get Kubernetes credentials for the specified cluster
+                    echo 'Fetching Kubernetes cluster credentials...'
+                    sh "gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_ZONE} --project ${GCP_PROJECT_NAME}"
+
+                    // Replace the <BUILD_TAG> in ${REPO_NAME}.yaml with the actual DOCKER_TAG
+                    echo 'Replacing <BUILD_TAG> in ${REPO_NAME}.yaml with actual Docker tag...'
+                    sh "sed -i 's|<BUILD_TAG>|${DOCKER_TAG}|g' deployment/${REPO_NAME}.yaml"
+
+                    // Deploy the application using kubectl
+                    echo 'Deploying the application to Kubernetes...'
+                    sh 'kubectl apply -f deployment/${REPO_NAME}.yaml'
+                    
+                    // setup the service
+                    echo 'Setting up the service for module...'
+                    sh 'kubectl apply -f deployment/${REPO_NAME}-service.yaml'
+                }
+            }
+        }
+    }
+}

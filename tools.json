@@ -1,0 +1,716 @@
+{
+  "tools": [
+    {
+      "name": "general/iputils/get_ip_address_type",
+      "description": "This returns features (IPv4/v6, public/private etc.) of the given ip address. Below parameters are mandatory inputs to this tool without which tool calls is not useful.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get description of given IP address\""
+        },
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "Mandatory input field. The IP address to analyze"
+        }
+      ],
+      "output": {
+        "ip_address": "type: String, description: The IP address being analyzed",
+        "valid": "type: Boolean, description: Indicates if the IP address is valid",
+        "version": "type: String, description: The version of the IP address (IPv4 or IPv6)",
+        "type": "type: String, description: The type of the IP address (private, public, loopback, reserved, link_local, multicast)",
+        "description": "type: String, description: A human-readable description of the IP address type"
+      }
+    },
+    {
+      "name": "general/iputils/is_whitelist_ip",
+      "description": "This tool checks the given ip address against organization's whitelist. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Check if given ip address is whitelisted\""
+        },
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "Mandatory input field. The IP address to check against whitelist"
+        }
+      ],
+      "output": {
+        "result": "type: string, description: JSON object returns true: If whitelisted, false: If not whitelisted",
+        "description": "type: string, description: A human-readable description of the result"
+      }
+    },
+    {
+      "name": "general/iputils/is_blocklist_ip",
+      "description": "This tool checks the given ip address against organization's blocklist. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Check if given ip address is whitelisted\""
+        },
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "Mandatory input field. The IP address to check against blocklist"
+        }
+      ],
+      "output": {
+        "result": "type: string, description: JSON object returns true: If blocklisted, false: If not blocklisted",
+        "description": "type: string, description: A human-readable description of the result"
+      }
+    },
+    {
+      "name": "intelligence/ipinfo/get_ip_geolocation",
+      "description": "Retrieves geolocation information for given public IP address including country, city, and organization. Below parameters are mandatory inputs to this tool. **Important**: send only public ip addresses by checking it using tool get_ip_type",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get geolocation of IP address\""
+        },
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "The Public IP address to look up location information for"
+        }
+      ],
+      "output": {
+        "ip_address": "type: String, description: The IP address being analyzed",
+        "status": "type: String, description: The status of the geolocation lookup",
+        "continent": "type: String, description: The continent where the IP address is located",
+        "country": "type: String, description: The country where the IP address is located",
+        "cordinates": "type: String, description: The coordinates (latitude and longitude) of the IP address location",
+        "timezone": "type: String, description: The timezone of the IP address location"
+      }
+    },
+    {
+      "name": "intelligence/virustotal/get_ip_reputation_report",
+      "description": "Checks an Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. send only public ip addresses by checking it using tool get_ip_type",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get reputation report of IP address\""
+        },
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "The public IP address to check reputation for"
+        }
+      ],
+      "output": {
+        "ip_address": "type: String, description: The IP address being analyzed",
+        "status": "type: String, description: The status of the reputation report",
+        "continent": "type: String, description: The continent where the IP address is located",
+        "country": "type: String, description: The country where the IP address is located",
+        "malicious_count": "type: Integer, description: The number of sources by whom IP address has been reported as malicious",
+        "total_engines": "type: Integer, description: The total number of engines that have reported on the IP address",
+        "reputation_score": "type: Integer, description: The reputation score of the IP address, malicious_count divided by total_engines"
+      }
+    },
+    {
+      "name": "intelligence/dns/dns_lookup",
+      "description": "Performs DNS resolution for a hostname or domain name. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get DNS records for domain\""
+        },
+        {
+          "name": "domain",
+          "type": "string",
+          "description": "Domain name to perform DNS lookup on"
+        },
+        {
+          "name": "record_type",
+          "type": "string",
+          "description": "DNS record type (A, AAAA, MX, TXT, etc.)",
+          "default": "A"
+        }
+      ],
+      "output": { "fill": "JSON array of DNS records matching the query" }
+    },
+    {
+      "name": "intelligence/whois/whois_lookup",
+      "description": "Retrieves domain registration information including owner, dates, and nameservers. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get WHOIS information for domain\""
+        },
+        {
+          "name": "domain",
+          "type": "string",
+          "description": "Domain name to query WHOIS information for"
+        }
+      ],
+      "output": { "fill": "JSON object with domain registration details" }
+    },
+    {
+      "name": "cloud/aws/s3/aws_s3_list_files",
+      "description": "Lists all files in a given AWS S3 bucket. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"List files in S3 bucket\""
+        },
+        {
+          "name": "bucket_name",
+          "type": "string",
+          "description": "The name of the AWS S3 bucket"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with a list of filenames in the given bucket. Example: {\"files\": [\"file1.txt\", \"file2.jpg\", \"data.csv\"]}"
+      }
+    },
+    {
+      "name": "cloud/gcp/gcs/gcs_list_files",
+      "description": "Lists all files in a given Google Cloud Storage bucket. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"List files in GCS bucket\""
+        },
+        {
+          "name": "bucket_name",
+          "type": "string",
+          "description": "The name of the GCS bucket"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with a list of filenames in the given GCS bucket. Example: {\"files\": [\"file1.txt\", \"file2.jpg\", \"data.csv\"]}"
+      }
+    },
+    {
+      "name": "cloud/gcp/audit_logs/fetch_audit_logs",
+      "description": "Fetches logs from GCP Audit Logs using the generated query for a given project ID. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Fetch audit logs matching the given query in given project id\""
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "The query to fetch logs from audit logs"
+        },
+        {
+          "name": "project_id",
+          "type": "string",
+          "description": "The GCP project ID"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with log events fetched from audit logs"
+      }
+    },
+    {
+      "name": "cloud/gcp/iam/gcp_iam_role_lookup",
+      "description": "Checks the IAM roles of a member for a given resource. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get IAM roles of a member for a given resource\""
+        },
+        {
+          "name": "project_id",
+          "type": "string",
+          "description": "The GCP project ID"
+        },
+        {
+          "name": "target_user",
+          "type": "string",
+          "description": "The target user (e.g., email, service account) to check roles for"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with IAM roles assigned to the member on the resource"
+      }
+    },
+    {
+      "name": "cloud/gcp/logging/generate_gcp_logging_query",
+      "description": "Generates and executes a query to fetch logs from GCP Audit Logs for a given project ID. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Generate and execute a query to fetch logs from GCP Audit Logs\""
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "The query to fetch logs from audit logs"
+        },
+        {
+          "name": "project_id",
+          "type": "string",
+          "description": "The GCP project ID"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with log events fetched from audit logs"
+      }
+    },
+    {
+      "name": "siem/splunk/splunk_choose_index",
+      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Fetches the correct Splunk index for the requirement.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get Splunk index for analysing the given requirement\""
+        },
+        {
+          "name": "requirement",
+          "type": "string",
+          "description": "Description of the requirement"
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Alert received"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with Splunk index name in the field index_name"
+      }
+    },
+    {
+      "name": "siem/splunk/generate_splunk_query",
+      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Generates a Splunk query for a given intcid and requirement.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Generate Splunk query for analysing the given requirement\""
+        },
+        {
+          "name": "requirement",
+          "type": "string",
+          "description": "Description of the requirement"
+        },
+        {
+          "name": "index_name",
+          "type": "string",
+          "description": "Index name chosen in previous steps of triaging"
+        },
+        {
+          "name": "sourcetype",
+          "type": "string",
+          "description": "sourcetype chosen in previous steps of triaging"
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Alert received"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with query to run in Splunk for triaging this requirement"
+      }
+    },
+    {
+      "name": "siem/splunk/run_splunk_query",
+      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Runs a Splunk query in the customer's Splunk instance and returns the result.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Run Splunk query for analysing the given requirement\""
+        },
+        {
+          "name": "splunk_query",
+          "type": "string",
+          "description": "The Splunk query to execute returned from generate_splunk_query function"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with query results returned from Splunk"
+      }
+    },
+    {
+      "name": "siem/wazuh/get_alert_context",
+      "description": "Important information extraction tool. It extracts and returns important parameters of the alert like username, source ip address, target ip address, domain etc. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get source ip address for the alert\""
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Alert received"
+        }
+      ],
+      "output": {
+        "fill": "JSON object response that returns source ip address to be used for this triage. It will also return field name which contains the source ip address. If not found the tool will clearly respond about absence of source ip for this event."
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_get_all_index_names",
+      "description": "Tool to setup integration data. Call this tool to get all wazuh index names present in the Wazuh opensearch instance. Index names with dates will be converted to wildcard suffix. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get all index names from wazuh instance\""
+        }
+      ],
+      "output": {
+        "fill": "JSON object with all available Wazuh opensearch index names. Index names with dates will be converted to wildcard suffix. wazuh-alerts-4.x-*"
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_get_available_fields_for_index",
+      "description": "Tool to setup integration data. Call this tool to get available field names in given index_name of Wazuh opensearch instance. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get all available field names from given wazuh index name\""
+        },
+        {
+          "name": "index_name",
+          "type": "string",
+          "description": "Index name (prefix with wildcards also supported) to fetch the available fields"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with available field names in the given index name. Nested fields will be flattened with . as separator. Example: data.win.eventdata.commandLine"
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_get_single_matching_record",
+      "description": "Call this tool to get single matching record in the given index_name matching the given query from opensearch instance. send only bool query with must/should clauses. NOTE: it returns one raw json record only. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get all available field names from given wazuh index name\""
+        },
+        {
+          "name": "index_name",
+          "type": "string",
+          "description": "Index name (prefix with wildcards also supported) to fetch the available fields"
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "The query to execute in the index to fetch the record"
+        }
+      ],
+      "output": {
+        "fill": "JSON object response with single matching raw json record matching the bool query in the given index name."
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_choose_index_and_environment",
+      "description": "Tool to run to choose an index name relevant for the current triage_question for running the query. Below parameters are mandatory inputs to this tool. This tool fetches the correct Wazuh Opensearch index for triaging the question.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get Wazuh index for  for analysing failed login attempts of user <user>\""
+        },
+        {
+          "name": "tid",
+          "type": "string",
+          "description": "Triage Record Identifier"
+        },
+        {
+          "name": "question_id",
+          "type": "string",
+          "description": "Triage Question Identifier"
+        },
+        {
+          "name": "triage_question",
+          "type": "string",
+          "description": "Description of the triage question"
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Alert received"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with Wazuh opensearch index name in the field Index Name: *index_name* and operating system type in the field environment: *env*"
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_generate_query",
+      "description": "Tool Generates a Wazuh query with given input. Tool to run while triaging a requirement. Below parameters are **mandatory** inputs to this tool. Do not miss to send any and dont send placeholder values like <index_name>.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Mandatory: Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Generate Wazuh query for fetching commands executed by the user or past failed login attempts of user etc.\""
+        },
+        {
+          "name": "tid",
+          "type": "string",
+          "description": "Mandatory: Triage Record Identifier"
+        },
+        {
+          "name": "question_id",
+          "type": "string",
+          "description": "Mandatory: Triage Question Identifier"
+        },
+        {
+          "name": "triage_question",
+          "type": "string",
+          "description": "Mandatory: Description of the triage question"
+        },
+        {
+          "name": "index_name",
+          "type": "string",
+          "description": "Mandatory: Index name chosen in previous steps of triaging"
+        },
+        {
+          "name": "env",
+          "type": "string",
+          "description": "Mandatory: Operating system environment chosen in previous steps of triaging"
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Mandatory: Alert received"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with query to run in Wazuh opensearch for triaging this requirement"
+      }
+    },
+    {
+      "name": "siem/wazuh/wazuh_run_query",
+      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Runs a opensearch query in the customer's Wazuh opensearch instance and returns the result.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Run Wazuh given Wazuh query\""
+        },
+        {
+          "name": "index_name",
+          "type": "string",
+          "description": "Index name chosen in previous steps of triaging"
+        },
+        {
+          "name": "wazuh_query",
+          "type": "string",
+          "description": "The Wazuh query to execute returned from wazuh_generate_query function"
+        }
+      ],
+      "output": {
+        "fill": "JSON object with query results returned from Wazuh opensearch"
+      }
+    },
+    {
+      "name": "siem/sentinel/get_tables",
+      "description": "Fetches all tables and their schemas from Microsoft Sentinel. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get all tables and their schemas from Microsoft Sentinel\""
+        }
+      ],
+      "output": {
+        "tables_with_schema": {
+          "<table_name1>": [
+            "<available_field1>",
+            "<available_field2>",
+            "<...>"
+          ],
+          "<table_name2>": ["<available_field1>", "<available_field2>", "<...>"]
+        }
+      }
+    },
+    {
+      "name": "siem/sentinel/generate_query",
+      "description": "Generates a Sentinel KQL query based on the requirement, alert, and context. Below parameters are mandatory inputs to this tool. Table name is the response from choose table tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Mandatory: Well explained, pointed task statement. Example: \"Generate KQL to find logon failures for a specific user\". Use the table name from the choose table tool."
+        },
+        {
+          "name": "tid",
+          "type": "string",
+          "description": "Mandatory: Triage Record Identifier."
+        },
+        {
+          "name": "question_id",
+          "type": "string",
+          "description": "Mandatory: Triage Question Identifier."
+        },
+        {
+          "name": "triage_question",
+          "type": "string",
+          "description": "Mandatory: Description of the triage question."
+        },
+        {
+          "name": "table_name",
+          "type": "string",
+          "description": "Mandatory: Sentinel table name returned by sentinel_choose_table tool."
+        },
+        {
+          "name": "alert_context",
+          "type": "dict",
+          "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
+        },
+        {
+          "name": "additional_info",
+          "type": "string",
+          "description": "Mandatory: Send any additional information extracted during the triage process which might be needed by this tool to generate the KQL query. If not needed, send empty string."
+        },
+        {
+          "name": "env",
+          "type": "string",
+          "description": "Mandatory: Operating system environment chosen in previous steps."
+        }
+      ],
+      "output": {
+        "query": "type: String, description: The generated KQL query string for querying the data in sentinel log analytics workspace."
+      }
+    },
+    {
+      "name": "siem/sentinel/run_query",
+      "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Mandatory: Description of the task executing the query. Example: \"Execute query to count events by type\""
+        },
+        {
+          "name": "kql_query",
+          "type": "string",
+          "description": "Mandatory: The KQL query string to execute."
+        }
+      ],
+      "output": {
+        "query_results": ["<matching_record1>", "<matching_record2>", "<...>"]
+      }
+    },
+    {
+      "name": "siem/sentinel/choose_table",
+      "description": "Selects the appropriate Sentinel table for a given triage requirement and alert using AI. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "tid",
+          "type": "string",
+          "description": "Mandatory: The triage ID."
+        },
+        {
+          "name": "question_id",
+          "type": "string",
+          "description": "Mandatory: The specific question ID within the triage process."
+        },
+        {
+          "name": "triage_question",
+          "type": "string",
+          "description": "Mandatory: The text of the triage question being addressed."
+        },
+        {
+          "name": "alert_context",
+          "type": "string",
+          "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
+        },
+        {
+          "name": "additional_info",
+          "type": "string",
+          "description": "Mandatory: Send any additional information extracted during the triage process which might be needed by this tool to generate the KQL query. If not needed, send empty string."
+        }
+      ],
+      "output": {
+        "table_name": "type: String, description: The name of the chosen Sentinel table.",
+        "env": "type: String, description: The operating system environment chosen in previous steps."
+      }
+    },
+    {
+      "name": "siem/sentinel/get_single_matching_record",
+      "description": "Fetches a single record matching a specific KQL query from a Sentinel table. Assumes the KQL query is designed to return at most one record. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Mandatory: A description of the task requesting the record. Example: \"Get the specific SecurityEvent for Event ID 4625\""
+        },
+        {
+          "name": "table_name",
+          "type": "string",
+          "description": "Mandatory: The name of the Sentinel table targeted by the query."
+        },
+        {
+          "name": "kql_query",
+          "type": "string",
+          "description": "Mandatory: The KQL query string expected to return a single record."
+        }
+      ],
+      "output": {
+        "table_name": "type: String, description: The name of the Sentinel table queried.",
+        "kql_query": "type: String, description: The KQL query string executed.",
+        "result": "type: String, description: The single record returned by the query."
+      }
+    },
+    {
+      "name": "siem/sentinel/get_alert_context",
+      "description": "Retrieves context for a given Sentinel alert/event using AI. Determines relevant table/environment, fetches sample records, and extracts context based on the task. Below parameters are mandatory inputs to this tool.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "Mandatory: The specific task or information needed from the alert context. Example: \"Extract source IP and destination URL from network alert\""
+        },
+        {
+          "name": "alert",
+          "type": "string",
+          "description": "Mandatory: The Sentinel alert/event content as a JSON string."
+        }
+      ],
+      "output": {
+        "alert_context": {
+          "alert_classification": {
+            "category": "type: String, description: The category of the alert (e.g., host, network, cloud, identity, etc.)",
+            "sub_category": [
+              "malware",
+              "file",
+              "process",
+              "user_activity",
+              "system",
+              "etc..."
+            ]
+          },
+          "extracted_fields": {
+            "<key1>": {
+              "description": "type: String, description: The description of the field",
+              "field_name": "type: String, description: The name of the field, it can be a nested field as well",
+              "value": "type: String, description: The value of the field",
+              "confidence": "type: String, description: The confidence level of LLM on the extracted field, value, high/medium/low"
+            },
+            "source_ip<this is example only>": {
+              "description": "source_ip: Source IP address involved",
+              "field_name": "alert.Entities[1].Address",
+              "value": "196.251.85.62",
+              "confidence": "high"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

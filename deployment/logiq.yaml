@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logiq
+  namespace: trench-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logiq
+  template:
+    metadata:
+      labels:
+        app: logiq
+    spec:
+      serviceAccountName: gke-service-account
+      containers:
+        - name: logiq
+          image: gcr.io/trench-production/docker-repo/logiq:<BUILD_TAG>
+          resources:
+            requests:
+              memory: 500Mi
+              cpu: 500m
+            limits:
+              memory: 500Mi
+              cpu: 500m
+          volumeMounts:
+            - mountPath: "/mnt/secrets/"
+              name: shared-volume
+        - name: secret-manager-sidecar
+          image: google/cloud-sdk:alpine
+          env:
+            - name: SECRET_VERSION
+              value: "latest"
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              echo 'Fetching logiq.conf from secrets...';
+              if [ "${SECRET_VERSION}" = "latest" ]; then
+                gcloud secrets versions access latest --secret=properties_logiq_config > /tmp/logiq.conf;
+              else
+                gcloud secrets versions access ${SECRET_VERSION} --secret=properties_logiq_config > /tmp/logiq.conf;
+              fi
+              echo "Completed secret fetching for version: ${SECRET_VERSION}";
+
+              # Convert Unix line endings to Windows (CRLF) if necessary
+              cat /tmp/logiq.conf > /mnt/secrets/logiq.conf;
+
+              echo 'Windows line endings applied and file written to /mnt/secrets/';
+
+              # Loop indefinitely
+              while true; do
+                echo 'Sleeping for 300 seconds';
+                sleep 300;
+              done
+          volumeMounts:
+            - mountPath: /mnt/secrets/
+              name: shared-volume # Ensures that the secret is mounted in the shared volume
+          resources:
+            requests:
+              memory: "100Mi"
+              cpu: "100m"
+            limits:
+              memory: "200Mi"
+              cpu: "200m"
+      volumes:
+        - name: shared-volume
+          emptyDir: {} # Temporary shared volume to share secrets between containers
