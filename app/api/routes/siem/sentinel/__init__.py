@@ -23,19 +23,17 @@ from app.services.siem.sentinel.tools import (
 
 # Request models
 class sentinelTableRequest(BaseModel):
-    task: str
+    task: Optional[str] = None
 
 
 class SentinelGetSecurityAlertsRequest(BaseModel):
-    task: str = Field(..., description="Task description for fetching security alerts.")
+    task: Optional[str] = None
     start_time: str = Field(..., description="Start time for the alert query.")
     end_time: str = Field(..., description="End time for the alert query.")
 
 
 class SentinelGetSecurityIncidentsRequest(BaseModel):
-    task: str = Field(
-        ..., description="Task description for fetching security incidents."
-    )  # Corrected description
+    task: Optional[str] = None
     start_time: str = Field(
         ..., description="Start time for the incident query."
     )  # Corrected description
@@ -52,7 +50,6 @@ class GenerateSentinelQueryRequest(BaseModel):
     triage_question: str
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
-    additional_info: str
     env: str
 
 
@@ -60,11 +57,12 @@ class GenerateSentinelQueryRequest(BaseModel):
 
 
 class SentinelRunKQLQueryRequest(BaseModel):
-    task: str = Field(..., description="Description of the task executing the query.")
+    task: Optional[str] = None
     kql_query: str = Field(..., description="The KQL query string to execute.")
 
 
 class SentinelChooseTableRequest(BaseModel):
+    task: str
     tid: str = Field(..., description="The triage ID.")
     question_id: str = Field(
         ..., description="The specific question ID within the triage process."
@@ -76,16 +74,10 @@ class SentinelChooseTableRequest(BaseModel):
     alert_context: Any = Field(
         ..., description="The relevant alert context content (dict or string)."
     )
-    additional_info: str = Field(
-        ...,
-        description="Additional information extracted during the triage process which might be needed by this tool to generate the KQL query..",
-    )
 
 
 class SentinelGetSingleRecordRequest(BaseModel):
-    task: str = Field(
-        ..., description="A description of the task requesting the record."
-    )
+    task: Optional[str] = None
     table_name: str = Field(
         ..., description="The name of the Sentinel table targeted by the query."
     )
@@ -95,10 +87,7 @@ class SentinelGetSingleRecordRequest(BaseModel):
 
 
 class SentinelGetAlertContextRequest(BaseModel):
-    task: str = Field(
-        ...,
-        description="The specific task or information needed from the alert context.",
-    )
+    task: Optional[str] = None
     alert: Any = Field(..., description="The Sentinel alert/event content.")
 
 
@@ -268,7 +257,6 @@ async def generate_query_route(
             request_body.step_id,
             request_body.triage_question,
             request_body.alert_context,
-            request_body.additional_info,
             request_body.env,
         )
         return result
@@ -364,7 +352,6 @@ async def choose_table_route(
             request.step_id,
             request.triage_question,
             request.alert_context,
-            request.additional_info,
         )
         return result
     except Exception as e:

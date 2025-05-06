@@ -1,5 +1,6 @@
 """VirusTotal routes package."""
 
+from typing import Optional
 from fastapi import APIRouter, Path, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ from app.services.general.iputils import tools as iptools
 
 
 class IPAddressRequest(BaseModel):
-    task: str
+    task: Optional[str] = None
     ip_address: str
 
 

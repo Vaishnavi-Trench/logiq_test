@@ -5,11 +5,6 @@
       "description": "This returns features (IPv4/v6, public/private etc.) of the given ip address. Below parameters are mandatory inputs to this tool without which tool calls is not useful.",
       "input": [
         {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get description of given IP address\""
-        },
-        {
           "name": "ip_address",
           "type": "string",
           "description": "Mandatory input field. The IP address to analyze"
@@ -28,11 +23,6 @@
       "description": "This tool checks the given ip address against organization's whitelist. Below parameters are mandatory inputs to this tool.",
       "input": [
         {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Check if given ip address is whitelisted\""
-        },
-        {
           "name": "ip_address",
           "type": "string",
           "description": "Mandatory input field. The IP address to check against whitelist"
@@ -48,11 +38,6 @@
       "description": "This tool checks the given ip address against organization's blocklist. Below parameters are mandatory inputs to this tool.",
       "input": [
         {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Check if given ip address is whitelisted\""
-        },
-        {
           "name": "ip_address",
           "type": "string",
           "description": "Mandatory input field. The IP address to check against blocklist"
@@ -67,11 +52,6 @@
       "name": "intelligence/ipinfo/get_ip_geolocation",
       "description": "Retrieves geolocation information for given public IP address including country, city, and organization. Below parameters are mandatory inputs to this tool. **Important**: send only public ip addresses by checking it using tool get_ip_type",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get geolocation of IP address\""
-        },
         {
           "name": "ip_address",
           "type": "string",
@@ -91,11 +71,6 @@
       "name": "intelligence/virustotal/get_ip_reputation_report",
       "description": "Checks an Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. send only public ip addresses by checking it using tool get_ip_type",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get reputation report of IP address\""
-        },
         {
           "name": "ip_address",
           "type": "string",
@@ -117,11 +92,6 @@
       "description": "Performs DNS resolution for a hostname or domain name. Below parameters are mandatory inputs to this tool.",
       "input": [
         {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get DNS records for domain\""
-        },
-        {
           "name": "domain",
           "type": "string",
           "description": "Domain name to perform DNS lookup on"
@@ -139,11 +109,6 @@
       "name": "intelligence/whois/whois_lookup",
       "description": "Retrieves domain registration information including owner, dates, and nameservers. Below parameters are mandatory inputs to this tool.",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get WHOIS information for domain\""
-        },
         {
           "name": "domain",
           "type": "string",
@@ -543,11 +508,6 @@
       "description": "Generates a Sentinel KQL query based on the requirement, alert, and context. Below parameters are mandatory inputs to this tool. Table name is the response from choose table tool.",
       "input": [
         {
-          "name": "task",
-          "type": "string",
-          "description": "Mandatory: Well explained, pointed task statement. Example: \"Generate KQL to find logon failures for a specific user\". Use the table name from the choose table tool."
-        },
-        {
           "name": "tid",
           "type": "string",
           "description": "Mandatory: Triage Record Identifier."
@@ -573,11 +533,6 @@
           "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
         },
         {
-          "name": "additional_info",
-          "type": "string",
-          "description": "Mandatory: Send any additional information extracted during the triage process which might be needed by this tool to generate the KQL query. If not needed, send empty string."
-        },
-        {
           "name": "env",
           "type": "string",
           "description": "Mandatory: Operating system environment chosen in previous steps."
@@ -591,11 +546,6 @@
       "name": "siem/sentinel/run_query",
       "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool.",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Mandatory: Description of the task executing the query. Example: \"Execute query to count events by type\""
-        },
         {
           "name": "kql_query",
           "type": "string",
@@ -629,11 +579,6 @@
           "name": "alert_context",
           "type": "string",
           "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
-        },
-        {
-          "name": "additional_info",
-          "type": "string",
-          "description": "Mandatory: Send any additional information extracted during the triage process which might be needed by this tool to generate the KQL query. If not needed, send empty string."
         }
       ],
       "output": {
@@ -645,11 +590,6 @@
       "name": "siem/sentinel/get_single_matching_record",
       "description": "Fetches a single record matching a specific KQL query from a Sentinel table. Assumes the KQL query is designed to return at most one record. Below parameters are mandatory inputs to this tool.",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Mandatory: A description of the task requesting the record. Example: \"Get the specific SecurityEvent for Event ID 4625\""
-        },
         {
           "name": "table_name",
           "type": "string",
@@ -671,11 +611,6 @@
       "name": "siem/sentinel/get_alert_context",
       "description": "Retrieves context for a given Sentinel alert/event using AI. Determines relevant table/environment, fetches sample records, and extracts context based on the task. Below parameters are mandatory inputs to this tool.",
       "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Mandatory: The specific task or information needed from the alert context. Example: \"Extract source IP and destination URL from network alert\""
-        },
         {
           "name": "alert",
           "type": "string",

@@ -8,7 +8,6 @@ from pltfrm import (
     Logger2 as Logger,
     PromptManager,
     AIManager,
-    RedisManager,
     PropX,
     MongoDBManager,
 )
@@ -31,7 +30,6 @@ async def sentinel_choose_table(
     step_id: str,
     triage_question: str,
     alert_context: any,
-    additional_info: str,
 ) -> dict:
     """Selects the appropriate Sentinel table using AI based on triage context and alert.
 
@@ -84,7 +82,7 @@ async def sentinel_choose_table(
             )
         )
         env_formatted_prompt = env_prompt_template.invoke(
-            {"alert_context": alert_str, "additional_info": additional_info}
+            {"alert_context": alert_str, "task": task}
         ).text
 
         env_response = AIManager.run_prompt_with_structured_output(
@@ -553,7 +551,6 @@ async def _generate_sentinel_kql_template(
     step_id: str,
     requirement: str,
     alert: str,
-    additional_info: str,
     table_name: str,
     table_schema: list,
     env: str = None,
@@ -611,7 +608,6 @@ async def _generate_sentinel_kql_template(
             {
                 "requirement": requirement,
                 "alert": alert,
-                "additional_info": additional_info,
                 "table_name": table_name,
                 "columns": json.dumps(table_schema),
                 "env": env,
@@ -824,7 +820,6 @@ async def sentinel_generate_kql_query(
     step_id: str,
     triage_question: str,
     alert_context: any,  # Accept dict or string
-    additional_info: str,
     env: str,
 ) -> dict:
     """Generates a Sentinel KQL query for a specific task and context using AI.
@@ -891,7 +886,6 @@ async def sentinel_generate_kql_query(
                     step_id=step_id,
                     requirement=task,
                     alert=alert_str,
-                    additional_info=additional_info,
                     table_name=table_name,
                     table_schema=schema,
                     env=env,

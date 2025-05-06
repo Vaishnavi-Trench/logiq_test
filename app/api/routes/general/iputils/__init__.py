@@ -8,7 +8,6 @@ from app.services.general.iputils import tools
 
 
 class IpTypeRequest(BaseModel):
-    task: str
     ip_address: str
 
 
