@@ -250,7 +250,7 @@
     },
     {
       "name": "siem/splunk/generate_splunk_query",
-      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Generates a Splunk query for a given intcid and requirement.",
+      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Generates a Splunk query for a given the input parameters below. Call run_query tool to run the generated query.",
       "input": [
         {
           "name": "task",
@@ -502,7 +502,7 @@
     },
     {
       "name": "siem/sentinel/generate_query",
-      "description": "Generates a Sentinel KQL query based on the requirement, alert, and context. Below parameters are mandatory inputs to this tool. Table name is the response from choose table tool.",
+      "description": "Generates a Sentinel KQL query based on the input parameters given below. Below parameters are mandatory inputs to this tool. use table name derived from choose_table tool and use run_query to run generated query.",
       "input": [
         {
           "name": "tid",
@@ -541,7 +541,7 @@
     },
     {
       "name": "siem/sentinel/run_query",
-      "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool.",
+      "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool. Always follows a generate query to the generated query.",
       "input": [
         {
           "name": "kql_query",
@@ -555,7 +555,7 @@
     },
     {
       "name": "siem/sentinel/choose_table",
-      "description": "Selects the appropriate Sentinel table for a given triage requirement and alert using AI. Below parameters are mandatory inputs to this tool.",
+      "description": "Selects the appropriate Sentinel table provided below parameters. Below parameters are mandatory inputs to this tool. always precedes a generate query tool.",
       "input": [
         {
           "name": "tid",
