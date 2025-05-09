@@ -53,7 +53,7 @@ async def sentinel_choose_table(
         f"tool:sentinel_choose_table: Starting for {intcid}, TID: {tid}, QID: {question_id}"
     )
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     model_name = PropX.get_property("module.llm.model")
 
     if not model_name:
@@ -285,7 +285,7 @@ async def fetch_security_alerts(
     Logger.info(f"tool:fetch_security_alerts: Starting for {intcid} {task}")
     table_name = "SecurityAlert"
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -393,7 +393,7 @@ async def fetch_security_incidents(
     Logger.info(f"tool:fetch_security_incidents: Starting for {intcid} {task}")
     table_name = "SecurityIncident"
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -505,7 +505,7 @@ async def _generate_sentinel_kql_template(
     Logger.info(
         f"_generate_sentinel_kql_template: Generating KQL template for {intcid}, table: {table_name}"
     )
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
 
     try:
         _query_template_record = sentinel_utils.get_kql_template_data_from_mongo(
@@ -779,7 +779,7 @@ async def sentinel_generate_kql_query(
         f"tool:sentinel_generate_kql_query: Starting for {intcid}, Table: {table_name}, Task: {task}"
     )
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -923,7 +923,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     Logger.info(f"tool:sentinel_run_kql_query: Starting for {intcid}, Task: {task}")
     Logger.debug(f"Executing KQL: {kql_query}")
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -1031,7 +1031,7 @@ async def sentinel_get_single_matching_record(
     )
     Logger.debug(f"Executing KQL to get single record: {kql_query}")
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -1098,7 +1098,7 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
         Logger.error(f"Failed to parse input alert: {e}. Alert data: {alert}")
         return {"error": "Invalid alert format provided."}
 
-    sentinel_utils = SentinelUtils()
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
