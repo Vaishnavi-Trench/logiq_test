@@ -226,8 +226,7 @@ async def get_sentinel_tables_with_schema(intcid: str, task: str) -> dict:
     """
     Logger.info(f"tool:get_sentinel_tables_with_schema: Starting for {intcid} {task}")
 
-    sentinel_utils = SentinelUtils()
-    log_management_tables = sentinel_utils.log_tables
+    sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
 
@@ -235,96 +234,29 @@ async def get_sentinel_tables_with_schema(intcid: str, task: str) -> dict:
     if not workspace_id:
         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
-    all_tables_raw = sentinel_utils.list_all_tables()
-    if all_tables_raw is None:
+    all_tables_with_schema = sentinel_utils.list_all_tables_with_columns()
+    if not all_tables_with_schema:
         Logger.error("Failed to list tables from Azure Management API.")
-        return {"error": "Failed to list tables."}
-    if not all_tables_raw:
-        Logger.info("No tables found via Management API.")
-        return {"tables_with_schema": {}}
+        return {
+            "status": False,
+            "all_tables": all_tables_with_schema,
+            "error": "Failed to list tables.",
+        }
 
-    all_tables = [
-        table for table in all_tables_raw if table.get("name") in log_management_tables
-    ]
-    if not all_tables:
-        Logger.info(
-            f"No tables matching the Log Management list found: {log_management_tables}"
-        )
-        return {"tables_with_schema": {}}
+    return {"status": True, "tables_with_schema": all_tables_with_schema}
 
-    Logger.debug(
-        f"Found {len(all_tables)} tables matching the Log Management list. Checking which have data..."
-    )
 
-    tables_with_data_and_schema = {}
-    query_api_version = "v1"
-    query_url = f"https://api.loganalytics.io/{query_api_version}/workspaces/{workspace_id}/query"
-    la_headers = {
-        "Authorization": f"Bearer {sentinel_utils.la_access_token.token}",
-        "Content-Type": "application/json",
-    }
+async def get_sentinel_table_row_count(intcid: str, task: str, table_name: str) -> dict:
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
 
-    for table in all_tables:
-        table_name = table.get("name")
-        if not table_name:
-            continue
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
-        kql_query = f"{table_name} | count"
-        query_payload = json.dumps({"query": kql_query})
-
-        try:
-            query_response = requests.post(
-                query_url, headers=la_headers, data=query_payload, timeout=20
-            )
-            query_response.raise_for_status()
-            query_result = query_response.json()
-
-            count = 0
-            if (
-                query_result.get("tables")
-                and len(query_result["tables"]) > 0
-                and query_result["tables"][0].get("rows")
-                and len(query_result["tables"][0]["rows"]) > 0
-                and len(query_result["tables"][0]["rows"][0]) > 0
-            ):
-                count = query_result["tables"][0]["rows"][0][0]
-
-            if count > 0:
-                Logger.debug(
-                    f"Table '{table_name}' has data ({count} rows). Fetching schema..."
-                )
-                schema = sentinel_utils.get_table_schema(table_name)
-                if schema:
-                    tables_with_data_and_schema[table_name] = schema
-                else:
-                    Logger.warn(
-                        f"Failed to retrieve schema for table '{table_name}' despite it having data."
-                    )
-
-        except requests.exceptions.Timeout:
-            Logger.warn(
-                f"Timeout occurred while querying count for table '{table_name}'."
-            )
-        except requests.exceptions.RequestException as qe:
-            Logger.warn(f"Could not query count for table '{table_name}'. Error: {qe}")
-            if hasattr(qe, "response") and qe.response is not None:
-                try:
-                    Logger.warn(f"Query Error Details: {qe.response.json()}")
-                except ValueError:
-                    Logger.warn(f"Query Error Details: {qe.response.text}")
-        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as qe_other:
-            Logger.warn(
-                f"Unexpected error processing count result for table '{table_name}': {qe_other}"
-            )
-
-    if tables_with_data_and_schema:
-        Logger.info(
-            f"Found {len(tables_with_data_and_schema)} Log Management tables with data."
-        )
-    else:
-        Logger.info("No Log Management tables with data found.")
-
-    return {"tables_with_schema": tables_with_data_and_schema}
+    status, count, error = sentinel_utils.get_table_row_count(table_name)
+    return {"status": status, "count": count, "error": str(error)}
 
 
 async def fetch_security_alerts(

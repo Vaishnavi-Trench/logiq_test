@@ -11,6 +11,7 @@ import json
 # Assuming these are implemented in the services layer
 from app.services.siem.sentinel.tools import (
     get_sentinel_tables_with_schema,
+    get_sentinel_table_row_count,
     fetch_security_alerts,
     fetch_security_incidents,
     sentinel_generate_kql_query,
@@ -24,6 +25,11 @@ from app.services.siem.sentinel.tools import (
 # Request models
 class sentinelTableRequest(BaseModel):
     task: Optional[str] = None
+
+
+class sentinelTableRowCountRequest(BaseModel):
+    task: Optional[str] = None
+    table_name: str = Field(..., description="The name of the Sentinel table to query.")
 
 
 class SentinelGetSecurityAlertsRequest(BaseModel):
@@ -127,6 +133,43 @@ async def get_tables_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to get tables from sentinel: {str(e)}"},
+        )
+
+
+@router.post("/get_table_row_count/{intcid}")
+async def get_table_row_count_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: sentinelTableRowCountRequest = Body(
+        ..., description="request for Log Management Tables"
+    ),
+):
+    """
+    Retrieves given table row count from Sentinel
+    along with their schemas. # Corrected docstring
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing task information
+
+    Returns:
+        JSON object with table names and their schemas
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_table_row_count/{intcid}: {request.task}"  # Corrected path in log
+    )
+    try:
+        result = await get_sentinel_table_row_count(
+            intcid, request.task, request.table_name
+        )
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting table row count {str(e)}")
+        Logger.error(
+            f"Error in get_table_row_count: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get table row count from sentinel: {str(e)}"},
         )
 
 

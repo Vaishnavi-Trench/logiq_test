@@ -24,8 +24,9 @@ MAX_KQL_GENERATION_ATTEMPTS = 3
 class SentinelUtils:
     """Utility class for interacting with Azure Sentinel/Log Analytics."""
 
-    def __init__(self):
+    def __init__(self, intcid: str):
         """Initializes the SentinelUtils class."""
+        self.intcid = intcid
         self.main_db = PropX.get_property("module.integration.config.db")
         self.integration_db = PropX.get_property("module.integration.config.collection")
         self.toolsmetadata_db = PropX.get_property(
@@ -35,8 +36,14 @@ class SentinelUtils:
         config = MongoDBManager.get_record_by_multiple_fields(
             self.main_db,
             self.integration_db,
-            {"type": "siem", "vendor": "sentinel", "recordType": "investigation"},
+            {
+                "intcid": self.intcid,
+                "type": "siem",
+                "vendor": "sentinel",
+                "recordType": "investigation",
+            },
         )
+
         tables = MongoDBManager.get_record_by_multiple_fields(
             self.main_db,
             self.templates_db,
@@ -218,6 +225,129 @@ class SentinelUtils:
             all_tables_raw = response_data.get("value", [])
             Logger.debug(f"Successfully listed {len(all_tables_raw)} raw tables.")
             return all_tables_raw
+        except requests.exceptions.RequestException as e:
+            Logger.error(f"HTTP error listing tables: {e}")
+            if hasattr(e, "response") and e.response is not None:
+                Logger.error(f"Response Status Code: {e.response.status_code}")
+                try:
+                    Logger.error(f"Response Body: {e.response.json()}")
+                except ValueError:
+                    Logger.error(f"Response Body: {e.response.text}")
+            return None
+        except Exception as e:
+            Logger.error(f"Unexpected error listing tables: {e}")
+            return None
+
+    def get_table_row_count(self, table_name):
+        query_api_version = "v1"
+        query_url = f"https://api.loganalytics.io/{query_api_version}/workspaces/{self.workspace_id}/query"
+        la_headers = {
+            "Authorization": f"Bearer {self.la_access_token.token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            kql_query = f"{table_name} | count"
+            query_payload = json.dumps({"query": kql_query})
+            query_response = requests.post(
+                query_url, headers=la_headers, data=query_payload, timeout=20
+            )
+            query_response.raise_for_status()
+            query_result = query_response.json()
+
+            count = 0
+            if (
+                query_result.get("tables")
+                and len(query_result["tables"]) > 0
+                and query_result["tables"][0].get("rows")
+                and len(query_result["tables"][0]["rows"]) > 0
+                and len(query_result["tables"][0]["rows"][0]) > 0
+            ):
+                count = query_result["tables"][0]["rows"][0][0]
+                return True, count, ""
+        except requests.exceptions.Timeout:
+            Logger.warn(
+                f"Timeout occurred while querying count for table '{table_name}'."
+            )
+            return False, 0, "Timeout occurred."
+        except requests.exceptions.RequestException as qe:
+            Logger.warn(f"Could not query count for table '{table_name}'. Error: {qe}")
+            if hasattr(qe, "response") and qe.response is not None:
+                try:
+                    Logger.warn(f"Query Error Details: {qe.response.json()}")
+                except ValueError:
+                    Logger.warn(f"Query Error Details: {qe.response.text}")
+            return False, 0, str(qe)
+        except (json.JSONDecodeError, KeyError, TypeError, IndexError) as qe_other:
+            Logger.warn(
+                f"Unexpected error processing count result for table '{table_name}': {qe_other}"
+            )
+            return False, 0, str(qe_other)
+
+    def list_all_tables_with_columns(self):
+        """Lists all tables in the workspace via the Management API."""
+        if not self.mgmt_access_token:
+            Logger.error(
+                "Authentication required before listing tables. Call authenticate() first."
+            )
+            return None
+
+        # Use instance variables
+        if not all(
+            [
+                self.subscription_id,
+                self.resource_group_name,
+                self.workspace_name,
+                self.mgmt_api_version,
+            ]
+        ):
+            Logger.error(
+                "Missing one or more workspace properties (subscription_id, resource_group_name, workspace_name, mgmt_api_version) from configuration."
+            )
+            return None
+
+        list_tables_url = (
+            f"https://management.azure.com/subscriptions/{self.subscription_id}"
+            f"/resourceGroups/{self.resource_group_name}/providers/Microsoft.OperationalInsights"
+            f"/workspaces/{self.workspace_name}/tables?api-version={self.mgmt_api_version}"
+        )
+        mgmt_headers = {
+            "Authorization": f"Bearer {self.mgmt_access_token.token}",
+            "Content-Type": "application/json",
+        }
+        Logger.debug(f"Calling REST API URL to list tables: {list_tables_url}")
+        try:
+            response = requests.get(list_tables_url, headers=mgmt_headers)
+            response.raise_for_status()
+            response_data = response.json()
+            all_tables_raw = response_data.get("value", [])
+            Logger.debug(f"Successfully listed {len(all_tables_raw)} raw tables.")
+
+            response_data = []
+            for table_raw in all_tables_raw:
+                table_name = table_raw.get("name")
+                solutions = table_raw.get("properties", {}).get("solutions", [])
+                response_table = {
+                    "table_name": table_name,
+                    "solutions": solutions,
+                    "columns": [],
+                }
+                columns = []
+                schema_info = table_raw.get("properties", {}).get("schema", {})
+                if schema_info:
+                    # Handle potential variations in schema structure
+                    column_list = schema_info.get("columns", []) or schema_info.get(
+                        "standardColumns", []
+                    )
+                    for col in column_list:
+                        col_name = col.get("name")
+                        if col_name:
+                            columns.append(col_name)
+
+                    response_table["columns"] = sorted(columns)
+                    Logger.debug(f"Successfully fetched schema for '{table_name}'.")
+                    response_data.append(response_table)
+            return response_data
         except requests.exceptions.RequestException as e:
             Logger.error(f"HTTP error listing tables: {e}")
             if hasattr(e, "response") and e.response is not None:
