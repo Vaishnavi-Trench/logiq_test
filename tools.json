@@ -544,7 +544,7 @@
       "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool. Always follows a generate query to the generated query.",
       "input": [
         {
-          "name": "kql_query",
+          "name": "query",
           "type": "string",
           "description": "Mandatory: The KQL query string to execute."
         }
@@ -593,7 +593,7 @@
           "description": "Mandatory: The name of the Sentinel table targeted by the query."
         },
         {
-          "name": "kql_query",
+          "name": "query",
           "type": "string",
           "description": "Mandatory: The KQL query string expected to return a single record."
         }

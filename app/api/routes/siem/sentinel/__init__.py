@@ -64,7 +64,7 @@ class GenerateSentinelQueryRequest(BaseModel):
 
 class SentinelRunKQLQueryRequest(BaseModel):
     task: Optional[str] = None
-    kql_query: str = Field(..., description="The KQL query string to execute.")
+    query: str = Field(..., description="The KQL query string to execute.")
 
 
 class SentinelChooseTableRequest(BaseModel):
@@ -87,7 +87,7 @@ class SentinelGetSingleRecordRequest(BaseModel):
     table_name: str = Field(
         ..., description="The name of the Sentinel table targeted by the query."
     )
-    kql_query: str = Field(
+    query: str = Field(
         ..., description="The KQL query string expected to return a single record."
     )
 
@@ -352,7 +352,7 @@ async def run_query_route(
         result = await sentinel_run_kql_query(
             intcid,
             request_body.task,
-            request_body.kql_query,
+            request_body.query,
         )
         return result
     except Exception as e:
@@ -433,7 +433,7 @@ async def get_single_matching_record_route(
             intcid,
             request.task,
             request.table_name,
-            request.kql_query,
+            request.query,
         )
         return result
     except Exception as e:
