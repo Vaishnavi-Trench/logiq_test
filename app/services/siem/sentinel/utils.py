@@ -367,7 +367,7 @@ class SentinelUtils:
             Logger.error(
                 "Authentication required before getting table schema. Call authenticate() first."
             )
-            return ["<Authentication error>"]
+            return False, "<Authentication error>"
 
         # Use instance variables
         if not all(
@@ -381,7 +381,7 @@ class SentinelUtils:
             Logger.error(
                 "Missing one or more workspace properties (subscription_id, resource_group_name, workspace_name, mgmt_api_version) from configuration."
             )
-            return ["<Schema retrieval configuration error>"]
+            return False, "<Schema retrieval configuration error>"
 
         schema_url = (
             f"https://management.azure.com/subscriptions/{self.subscription_id}"
@@ -409,12 +409,12 @@ class SentinelUtils:
                         columns.append(col_name)
             if columns:
                 Logger.debug(f"Successfully fetched schema for '{table_name}'.")
-                return sorted(columns)
+                return True, sorted(columns)
             else:
                 Logger.warn(
                     f"Could not extract column names for table '{table_name}' from schema response."
                 )
-                return ["<Schema retrieval failed>"]
+                return False, "<Schema retrieval failed>"
         except requests.exceptions.RequestException as se:
             Logger.warn(
                 f"HTTP error fetching schema for table '{table_name}'. Error: {se}"
@@ -426,12 +426,12 @@ class SentinelUtils:
                     Logger.warn(f"Response Body: {se.response.json()}")
                 except ValueError:
                     Logger.warn(f"Response Body: {se.response.text}")
-            return ["<Schema retrieval HTTP error>"]
+            return False, "<Schema retrieval HTTP error>"
         except Exception as se_other:
             Logger.warn(
                 f"Unexpected error fetching schema for table '{table_name}'. Error: {se_other}"
             )
-            return ["<Schema retrieval unexpected error>"]
+            return False, "<Schema retrieval unexpected error>"
 
     def get_table_metadata(self, intcid, table_name):
 

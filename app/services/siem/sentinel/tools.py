@@ -259,6 +259,25 @@ async def get_sentinel_table_row_count(intcid: str, task: str, table_name: str) 
     return {"status": status, "count": count, "error": str(error)}
 
 
+async def get_sentinel_table_schema(intcid: str, task: str, table_name: str) -> dict:
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+
+    success, response = sentinel_utils.get_table_schema(table_name)
+    if success:
+        return {"status": success, "columns": response}
+    else:
+        return {
+            "status": success,
+            "error": response,
+        }
+
+
 async def fetch_security_alerts(
     intcid: str, task: str, start_time: str = None, end_time: str = None
 ) -> dict:
