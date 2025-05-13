@@ -78,7 +78,7 @@ async def sentinel_choose_table(
     try:
         env_prompt_template = PromptTemplate.from_template(
             PromptManager.get_prompt_template(
-                intcid, "logiq", "SENTINEL_TABLE_SELECT_ENVIRONMENT_SELECTION_PROMPT"
+                intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
             )
         )
         env_formatted_prompt = env_prompt_template.invoke(

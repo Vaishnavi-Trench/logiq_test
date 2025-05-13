@@ -72,14 +72,14 @@ class PromptManager(Singleton):
         prompt_template_record = MongoDBManager.get_record_by_multiple_fields(
             PromptManager.get_instance().get_db(),
             PromptManager.get_instance().get_collection(),
-            {"intcid": intcid, "module": module, "name": name},
+            {"intcid": intcid, "module": module, "name": name, "active": 1}
         )
         if not prompt_template_record:
             Logger.info(f"Getting prompt template for name from global, name: {name}")
             prompt_template_record = MongoDBManager.get_record_by_multiple_fields(
                 PromptManager.get_instance().get_db(),
                 PromptManager.get_instance().get_collection(),
-                {"intcid": "1000", "module": module, "name": name},
+                {"intcid": "1000", "module": module, "name": name, "active": 1}
             )
 
         if prompt_template_record:
