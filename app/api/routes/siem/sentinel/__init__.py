@@ -56,9 +56,9 @@ class SentinelGetSecurityIncidentsRequest(BaseModel):
 
 class GenerateSentinelQueryRequest(BaseModel):
     task: str
+    step_id: str
     tid: str
     question_id: str
-    step_id: str
     triage_question: str
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
@@ -315,12 +315,12 @@ async def generate_query_route(
         JSON object with generated Sentinel KQL query.
     """
     Logger.info(
-        f"api: /siem/sentinel/sentinel_generate_kql_query/{intcid}: {request_body.task}, {request_body.tid}, {request_body.question_id}, {request_body.triage_question}, {request_body.table_name}, {request_body.env}"
+        f"api: /siem/sentinel/generate_query{intcid}: {request_body.task}, {request_body.tid}, {request_body.question_id}, {request_body.triage_question}, {request_body.table_name}, {request_body.env}"
     )
     try:
         raw_body = await request.body()
         Logger.info(
-            f"REQUEST PAYLOAD for sentinel_run_kql_query/{intcid}: {raw_body.decode()}"
+            f"REQUEST PAYLOAD for generate_query/{intcid}: {raw_body.decode()}"
         )
     except Exception as e:
         Logger.error(f"Failed to log request payload: {str(e)}")
@@ -328,7 +328,7 @@ async def generate_query_route(
     # Also log the validated request object
     try:
         Logger.info(
-            f"VALIDATED REQUEST for sentinel_generate_kql_query/{intcid}: {request_body.json()}"
+            f"VALIDATED REQUEST for generate_query/{intcid}: {request_body.json()}"
         )
     except Exception as e:
         Logger.error(f"Failed to log validated request: {str(e)}")

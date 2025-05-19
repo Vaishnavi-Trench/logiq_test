@@ -82,7 +82,7 @@ async def sentinel_choose_table(
             )
         )
         env_formatted_prompt = env_prompt_template.invoke(
-            {"alert_context": alert_str, "task": task}
+            {"alert": alert_str}
         ).text
 
         env_response = AIManager.run_prompt_with_structured_output(
@@ -1195,10 +1195,13 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
         env_response_str = AIManager.run_prompt(
             PropX.get_property("module.llm.model"), env_formatted_prompt
         )
-
+        
+        
+        
         env_response = sentinel_utils.sanitize_json_response(
             env_response_str, context="Context extraction - Environment selection"
         )
+        Logger.debug(f"Response for environment selection: {env_response_str}")
         if env_response is None:
             return {
                 "error": "Failed to parse AI response for environment selection (context extraction)."
