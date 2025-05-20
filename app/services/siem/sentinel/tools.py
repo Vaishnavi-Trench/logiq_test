@@ -95,7 +95,7 @@ async def sentinel_choose_table(
         Logger.debug(f"AI response for environment selection: {env_response}")
 
         env_response = env_response.model_dump()
-        env = env_response.get("env", None)
+        env = env_response.get("env","unknown").lower()
 
         if not env:
             Logger.warn(f"Could not determine environment from AI response: {env}")
@@ -525,7 +525,6 @@ async def _generate_sentinel_kql_template(
         f"_generate_sentinel_kql_template: Generating KQL template for {intcid}, table: {table_name}"
     )
     sentinel_utils = SentinelUtils(intcid=intcid)
-
     try:
         _query_template_record = sentinel_utils.get_kql_template_data_from_mongo(
             intcid=intcid, env=env, tid=tid, question_id=question_id, step_id=step_id
@@ -823,7 +822,7 @@ async def sentinel_generate_kql_query(
         else str(alert_context)
     )
     msg = ""  # Initialize msg
-
+    env = env.lower()
     for attempt in range(MAX_KQL_GENERATION_ATTEMPTS):
         Logger.info(
             f"KQL Generation Attempt {attempt + 1}/{MAX_KQL_GENERATION_ATTEMPTS} for task: {task}"
@@ -1204,18 +1203,18 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
                 "error": "Failed to parse AI response for environment selection (context extraction)."
             }
 
-        env = env_response.get("env")
+        env = env_response.get("env").lower()
         if not env:
             Logger.warn(
                 f"Could not determine environment from AI response: {env_response_str}"
             )
             # Allow proceeding without env, context extraction might still work
-            env = "Unknown"
+            env = "unknown"
         Logger.info(f"Determined environment: {env}")
     except Exception as e:
         Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
         # Allow proceeding without env
-        env = "Unknown"
+        env = "unknown"
         Logger.warn(f"Failed to determine environment: {e}. Setting to 'Unknown'.")
 
     # --- Step 2: Get Schema for the target table ---
