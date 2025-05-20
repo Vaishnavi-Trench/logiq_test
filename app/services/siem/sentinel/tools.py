@@ -1067,24 +1067,22 @@ async def sentinel_get_single_matching_record(
             f"Error executing KQL for single record: {execution_result['error']}"
         )
         # Propagate the specific error from the utility function
-        return execution_result  # Contains the error message
+        return {"error": execution_result}
 
     # The utility function returns {"matching_record": {}} if no record is found
     matching_record = execution_result.get("matching_record", {})
 
     if not matching_record:
         Logger.warn(
-            f"Query for single record executed successfully but returned no results. Query: {kql_query}"
-        )
-        # Return an error structure consistent with the tool's docstring
-        return {"error": "Query executed successfully but returned no records."}
-    else:
+            f"Query for single record executed successfully but returned no results. Query: {kql_query}")
+    else:       
         Logger.info(f"Successfully fetched single matching record from {table_name}.")
-        return {
-            "table_name": table_name,
-            "kql_query": kql_query,
-            "result": matching_record,
-        }
+    
+    return {
+        "table_name": table_name,
+        "query": kql_query,
+        "result": matching_record,
+    }
 
 
 async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict:
