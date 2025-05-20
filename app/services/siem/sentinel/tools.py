@@ -1043,7 +1043,6 @@ async def sentinel_get_single_matching_record(
         under the key 'result'. Returns an error dictionary if fetching fails or
         no record is found by the query.
         Example success: {'table_name': 'SecurityEvent', 'kql_query': '...', 'result': {...}}
-        Example error/not found: {'error': 'Query executed successfully but returned no records.'}
     """
     Logger.info(
         f"tool:sentinel_get_single_matching_record: Starting for {intcid}, Task: {task}, Table: {table_name}"
