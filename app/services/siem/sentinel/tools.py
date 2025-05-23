@@ -1355,3 +1355,36 @@ def transform_alert_context(input_data: dict) -> dict:
 
     # Return the modified top-level structure
     return input_data["alert_context"]
+
+
+async def fetch_sample_records(intcid: str, table_name: str, limit: int = 3) -> dict:
+    """
+    Fetches sample records from the specified table using SentinelUtils.
+
+    Args:
+        intcid (str): The integration/customer ID.
+        table_name (str): The name of the table to fetch records from.
+        limit (int): The number of sample records to fetch (default is 3).
+
+    Returns:
+        dict: A dictionary containing the sample records or an error message.
+    """
+    Logger.info(f"Fetching {limit} sample records from table: {table_name} for intcid: {intcid}")
+    
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    
+    # Authenticate with Sentinel
+    if not sentinel_utils.authenticate():
+        Logger.error("Failed to authenticate with Sentinel.")
+        return {"error": "Authentication failed. Check configuration and credentials."}
+    
+    # Fetch sample records using the utility function
+    kql_query = f"{table_name} | take {limit}"
+    result = sentinel_utils.get_matching_records(intcid, table_name, kql_query, limit)
+    
+    if "error" in result:
+        Logger.error(f"Error fetching sample records: {result['error']}")
+        return {"error": result["error"]}
+    
+    Logger.info(f"Successfully fetched sample records from table: {table_name}")
+    return {"sample_records": result.get("matching_records", [])}

@@ -20,6 +20,7 @@ from app.services.siem.sentinel.tools import (
     sentinel_choose_table,  # Added import
     sentinel_get_single_matching_record,  # Added import
     sentinel_get_alert_context,  # Added import
+    fetch_sample_records,  # Added import
 )
 
 
@@ -427,7 +428,7 @@ async def choose_table_route(
         JSON object with the chosen table name and environment, or an error.
     """
     Logger.info(
-        f"api: /siem/sentinel/sentinel_choose_table/{intcid}: TID: {request.tid}, QID: {request.question_id}"
+        f"api: /siem/sentinel/choose_table/{intcid}: TID: {request.tid}, QID: {request.question_id}"
     )
     try:
         result = await sentinel_choose_table(
@@ -523,4 +524,38 @@ async def get_alert_context_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to get Sentinel alert context: {str(e)}"},
+        )
+
+
+@router.post("/get_sample_records/{intcid}")
+async def fetch_sample_records_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: sentinelTableSchemaRequest = Body(
+        ..., description="Request to fetch sample records from a Sentinel table"
+    ),
+):
+    """
+    Fetches sample records from a specified Sentinel table.
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing the table name and task information.
+
+    Returns:
+        JSON object with sample records or an error message.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_sample_records/{intcid}: Task: {request.task}, Table: {request.table_name}"
+    )
+    try:
+        result = await fetch_sample_records(intcid, request.table_name)
+        return result
+    except Exception as e:
+        Logger.error(f"Error fetching sample records: {str(e)}")
+        Logger.error(
+            f"Error in fetch_sample_records: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to fetch sample records: {str(e)}"},
         )
