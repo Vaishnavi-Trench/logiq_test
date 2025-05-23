@@ -85,6 +85,33 @@
       }
     },
     {
+      "name": "intelligence/abuseipdb/get_ip_reputation_report",
+      "description": "Checks a Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. Send only public IP addresses by checking it using the tool get_ip_type.",
+      "input": [
+        {
+          "name": "ip_address",
+          "type": "string",
+          "description": "The public IP address to check reputation for"
+        }
+      ],
+      "output": {
+        "ip": "type: String, description: The IP address being checked",
+        "isPublic": "type: Boolean, description: Indicates if the IP address is public",
+        "ipVersion": "type: String, description: The version of the IP address (IPv4 or IPv6)",
+        "isWhitelisted": "type: Boolean, description: Indicates if the IP address is whitelisted",
+        "abuseConfidenceScore": "type: Integer, description: The confidence score indicating the likelihood of abuse",
+        "countryCode": "type: String, description: The country code where the IP address is located",
+        "usageType": "type: String, description: The usage type of the IP address (e.g., ISP, hosting, business)",
+        "isp": "type: String, description: The Internet Service Provider associated with the IP address",
+        "domain": "type: String, description: The domain associated with the IP address",
+        "hostnames": "type: Array of Strings, description: The hostnames associated with the IP address",
+        "isTor": "type: Boolean, description: Indicates if the IP address is part of the Tor network",
+        "totalReports": "type: Integer, description: The total number of reports for the IP address",
+        "numDistinctUsers": "type: Integer, description: The number of distinct users who reported the IP address",
+        "lastReportedAt": "type: String, description: The timestamp of the last report for the IP address"
+      }
+    },
+    {
       "name": "intelligence/dns/dns_lookup",
       "description": "Performs DNS resolution for a hostname or domain name. Below parameters are mandatory inputs to this tool.",
       "input": [
