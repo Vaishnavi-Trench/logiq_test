@@ -13,6 +13,7 @@ from app.services.siem.sentinel.tools import (
     get_sentinel_tables_with_schema,
     get_sentinel_table_row_count,
     get_sentinel_table_schema,
+    fetch_security_alerts_with_query,
     fetch_security_alerts,
     fetch_security_incidents,
     sentinel_generate_kql_query,
@@ -37,6 +38,16 @@ class sentinelTableRowCountRequest(BaseModel):
 class sentinelTableSchemaRequest(BaseModel):
     task: Optional[str] = None
     table_name: str = Field(..., description="The name of the Sentinel table to query.")
+
+
+class SentinelGetSecurityAlertsExecutingQueryRequest(BaseModel):
+    task: Optional[str] = None
+    query: str = Field(
+        ..., description="The KQL query string to execute for fetching alerts."
+    )
+    time_field: str = Field(..., description="The time field to filter alerts by.")
+    start_time: str = Field(..., description="Start time for the alert query.")
+    end_time: str = Field(..., description="End time for the alert query.")
 
 
 class SentinelGetSecurityAlertsRequest(BaseModel):
@@ -217,6 +228,50 @@ async def get_table_row_count_route(
         )
 
 
+@router.post("/fetch_alerts_executing_query/{intcid}")
+async def fetch_alerts_executing_query_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: SentinelGetSecurityAlertsExecutingQueryRequest = Body(
+        ..., description="Request to fetch security alerts"
+    ),
+):
+    """Fetches security alerts from Microsoft Sentinel.
+
+    Retrieves security alerts based on the specified customer ID and time range.
+
+    Args:
+        intcid: The customer ID for which to fetch alerts.
+        request: A request body containing the task description, start time,
+                 and end time for the alert query.
+
+    Returns:
+        A JSON response containing the fetched security alerts or an error
+        message if the operation fails.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/fetch_alerts_executing_query/{intcid}: Task: {request.task}"
+    )
+    try:
+        result = await fetch_security_alerts_with_query(
+            intcid,
+            request.task,
+            request.query,
+            request.time_field,
+            request.start_time,
+            request.end_time,
+        )
+        return result
+    except Exception as e:
+        Logger.error(f"Error fetching security alerts: {str(e)}")
+        Logger.error(
+            f"Error in fetch_security_alerts: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to fetch security alerts: {str(e)}"},
+        )
+
+
 @router.post("/fetch_security_alerts/{intcid}")
 async def fetch_security_alerts_route(
     intcid: str = Path(..., description="Customer ID"),
@@ -320,9 +375,7 @@ async def generate_query_route(
     )
     try:
         raw_body = await request.body()
-        Logger.info(
-            f"REQUEST PAYLOAD for generate_query/{intcid}: {raw_body.decode()}"
-        )
+        Logger.info(f"REQUEST PAYLOAD for generate_query/{intcid}: {raw_body.decode()}")
     except Exception as e:
         Logger.error(f"Failed to log request payload: {str(e)}")
 

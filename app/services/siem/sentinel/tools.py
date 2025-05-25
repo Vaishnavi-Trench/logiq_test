@@ -81,9 +81,7 @@ async def sentinel_choose_table(
                 intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
             )
         )
-        env_formatted_prompt = env_prompt_template.invoke(
-            {"alert": alert_str}
-        ).text
+        env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
 
         env_response = AIManager.run_prompt_with_structured_output(
             model_name, env_formatted_prompt, sentinel_models.Environment
@@ -95,7 +93,7 @@ async def sentinel_choose_table(
         Logger.debug(f"AI response for environment selection: {env_response}")
 
         env_response = env_response.model_dump()
-        env = env_response.get("env","unknown").lower()
+        env = env_response.get("env", "unknown").lower()
 
         if not env:
             Logger.warn(f"Could not determine environment from AI response: {env}")
@@ -276,6 +274,115 @@ async def get_sentinel_table_schema(intcid: str, task: str, table_name: str) -> 
             "status": success,
             "error": response,
         }
+
+
+async def fetch_security_alerts_with_query(
+    intcid: str,
+    task: str,
+    query: str,
+    time_field: str,
+    start_time: str = None,
+    end_time: str = None,
+) -> dict:
+    """Fetches recent security alerts from the Sentinel SecurityAlert table.
+
+    Authenticates, retrieves workspace ID, and queries the SecurityAlert table
+    using the Log Analytics API for records within a specified time range.
+
+    Args:
+        intcid: Integration/Customer ID.
+        task: Specific task description (for logging).
+        start_time: Optional start time string (ISO 8601 format).
+        end_time: Optional end time string (ISO 8601 format). If None, uses
+                  `DEFAULT_QUERY_TIME_RANGE`.
+
+    Returns:
+        A dictionary containing a list of security alert records under the key
+        'security_alerts_data'. Each record includes a 'tableName' key.
+        Returns an empty list if no data is found. Returns an error dictionary
+        on failure.
+        Example success: {'security_alerts_data': [{'tableName': 'SecurityAlert', ...}]}
+        Example error: {'error': 'Failed to retrieve Workspace ID.'}
+    """
+    Logger.info(f"tool:fetch_security_alerts_with_query: Starting for {intcid} {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+
+    query_api_version = "v1"
+    query_url = f"https://api.loganalytics.io/{query_api_version}/workspaces/{workspace_id}/query"
+    la_headers = {
+        "Authorization": f"Bearer {sentinel_utils.la_access_token.token}",
+        "Content-Type": "application/json",
+    }
+
+    time_filter_log_message = ""
+    if start_time and end_time:
+        time_filter = f"| where {time_field} between (datetime({start_time}) .. datetime({end_time}))"
+        time_filter_log_message = f"Using time range: {start_time} to {end_time}"
+    else:
+        default_time_range = DEFAULT_QUERY_TIME_RANGE
+        time_filter = f"| where {time_field} > ago({default_time_range})"
+        time_filter_log_message = f"Using default time range: last {default_time_range}"
+
+    kql_query = f"{query} {time_filter}"
+    query_payload = json.dumps({"query": kql_query})
+    Logger.debug(f"KQL Query: {kql_query}")
+
+    all_records = []
+    try:
+        query_response = requests.post(
+            query_url, headers=la_headers, data=query_payload, timeout=30
+        )
+        query_response.raise_for_status()
+        query_result = query_response.json()
+
+        if (
+            query_result.get("tables")
+            and len(query_result["tables"]) > 0
+            and query_result["tables"][0].get("rows")
+        ):
+            table_data = query_result["tables"][0]
+            columns = [col["name"] for col in table_data.get("columns", [])]
+            rows = table_data.get("rows", [])
+            if rows:
+                Logger.debug(f"Found {len(rows)} records")
+                for row in rows:
+                    record_dict = dict(zip(columns, row))
+                    all_records.append(record_dict)
+            else:
+                Logger.debug(f"No records found for query '{kql_query}'.")
+        else:
+            Logger.debug(
+                f"No data structure found in query response for query:'{kql_query}'."
+            )
+
+    except requests.exceptions.Timeout:
+        Logger.warn(f"Timeout occurred while querying data for query: '{kql_query}'.")
+        return {"security_alerts_data": []}
+    except requests.exceptions.RequestException as qe:
+        Logger.warn(f"Error querying data for query '{kql_query}'. Error: {qe}")
+        if hasattr(qe, "response") and qe.response is not None:
+            try:
+                Logger.warn(f"Query Error Details: {qe.response.json()}")
+            except ValueError:
+                Logger.warn(f"Query Error Details: {qe.response.text}")
+        return {"security_alerts_data": []}
+    except Exception as qe_other:
+        Logger.error(
+            f"An unexpected error occurred querying data for query '{kql_query}': {qe_other}\n{traceback.format_exc()}"
+        )
+        return {"error": f"Unexpected error querying {kql_query}."}
+
+    Logger.info(
+        f"Finished querying:{kql_query} ({time_filter_log_message}). Found {len(all_records)} records."
+    )
+    return {"alert_query_results": all_records}
 
 
 async def fetch_security_alerts(
@@ -1072,10 +1179,11 @@ async def sentinel_get_single_matching_record(
 
     if not matching_record:
         Logger.warn(
-            f"Query for single record executed successfully but returned no results. Query: {kql_query}")
-    else:       
+            f"Query for single record executed successfully but returned no results. Query: {kql_query}"
+        )
+    else:
         Logger.info(f"Successfully fetched single matching record from {table_name}.")
-    
+
     return {
         "table_name": table_name,
         "query": kql_query,
@@ -1191,9 +1299,7 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
         env_response_str = AIManager.run_prompt(
             PropX.get_property("module.llm.model"), env_formatted_prompt
         )
-        
-        
-        
+
         env_response = sentinel_utils.sanitize_json_response(
             env_response_str, context="Context extraction - Environment selection"
         )
@@ -1369,22 +1475,24 @@ async def fetch_sample_records(intcid: str, table_name: str, limit: int = 3) -> 
     Returns:
         dict: A dictionary containing the sample records or an error message.
     """
-    Logger.info(f"Fetching {limit} sample records from table: {table_name} for intcid: {intcid}")
-    
+    Logger.info(
+        f"Fetching {limit} sample records from table: {table_name} for intcid: {intcid}"
+    )
+
     sentinel_utils = SentinelUtils(intcid=intcid)
-    
+
     # Authenticate with Sentinel
     if not sentinel_utils.authenticate():
         Logger.error("Failed to authenticate with Sentinel.")
         return {"error": "Authentication failed. Check configuration and credentials."}
-    
+
     # Fetch sample records using the utility function
     kql_query = f"{table_name} | take {limit}"
     result = sentinel_utils.get_matching_records(intcid, table_name, kql_query, limit)
-    
+
     if "error" in result:
         Logger.error(f"Error fetching sample records: {result['error']}")
         return {"error": result["error"]}
-    
+
     Logger.info(f"Successfully fetched sample records from table: {table_name}")
     return {"sample_records": result.get("matching_records", [])}
