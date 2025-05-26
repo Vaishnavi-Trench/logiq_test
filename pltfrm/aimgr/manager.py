@@ -4,6 +4,7 @@ import numpy as np
 import tiktoken
 from guardrails import Guard
 from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from pydantic import ValidationError
@@ -132,7 +133,10 @@ class AIManager(Singleton):
                 max_tokens = PropX.get_property(f"aimgr.{model_name}.max.tokens")
 
                 client = OpenAI(api_key=api_key, base_url=endpoint)
-                chat_client = ChatGoogleGenerativeAI(model=model, api_key=api_key)
+                # Fix: Changed parameter name from api_key to google_api_key
+                chat_client = ChatGoogleGenerativeAI(
+                    model=model, google_api_key=api_key
+                )
                 # Store metadata
                 connection = {
                     "type": type,
@@ -149,7 +153,11 @@ class AIManager(Singleton):
                 )
 
     @staticmethod
-    def run_prompt(model_name, prompt):
+    def run_prompt(
+        model_name,
+        prompt,
+        system_prompt="You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated",
+    ):
         """
         Run a simple chat completion prompt using the specified model configuration.
 
@@ -169,7 +177,7 @@ class AIManager(Singleton):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an helpful assistant who strictly follows the context given",
+                    "content": system_prompt,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -179,7 +187,11 @@ class AIManager(Singleton):
         return completion.choices[0].message.content
 
     @staticmethod
-    def run_prompt_parse_json(model_name, prompt):
+    def run_prompt_parse_json(
+        model_name,
+        prompt,
+        system_prompt="You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated",
+    ):
         """run a prompt and parse the json response"""
         instance = AIManager.get_instance()
         connection = instance.get_connection(model_name)
@@ -191,7 +203,7 @@ class AIManager(Singleton):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated",
+                    "content": system_prompt,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -215,53 +227,6 @@ class AIManager(Singleton):
             return json.loads(json_content)
         except (ValueError, json.JSONDecodeError) as e:
             raise ValueError(f"Failed to parse JSON: {e}")
-
-    @staticmethod
-    def run_prompt_with_guard2(model_name, prompt, model_class):
-        """run a prompt with pydantic guard"""
-        instance = AIManager.get_instance()
-        connection = instance.get_connection(model_name)
-        model = connection.get("model")
-        client = connection.get("client")
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated",
-            },
-            {"role": "user", "content": prompt},
-        ]
-        guard = Guard.from_pydantic(output_class=model_class, messages=messages)
-        result = guard(
-            llm_api=client.chat.completions.create,
-            model=model,
-            num_reasks=1,
-        )
-        return result.raw_llm_output
-
-    @staticmethod
-    def get_agent_executor(model_name, tools, agent_prompt) -> AgentExecutor:
-        """
-        Create a Langchain tool-calling agent executor for a specific model configuration.
-
-        Args:
-            tools (list): A list of Langchain tools available to the agent.
-            agent_prompt (ChatPromptTemplate): The prompt template defining the agent's behavior.
-            model_name (str): The name of the model configuration (e.g., 'azure', 'openai') to use.
-
-        Returns:
-            AgentExecutor: The configured Langchain agent executor.
-
-        Raises:
-            ValueError: If the chat client for the specified model_name is not found.
-        """
-        instance = AIManager.get_instance()
-        connection = instance.get_connection(model_name)
-        chat_client = connection.get("chat_client")
-        if not chat_client:
-            raise ValueError(f"Chat client for model '{model_name}' not found.")
-
-        agent = create_tool_calling_agent(chat_client, tools, agent_prompt)
-        return AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     @staticmethod
     def get_vector_embedding(model_name, input_text):
@@ -321,7 +286,12 @@ class AIManager(Singleton):
         Logger.info(f"Token count for {name}, model: {model}: {token_count}")
 
     @staticmethod
-    def run_prompt_with_structured_output(model_name, prompt, model_class):
+    def run_prompt_with_structured_output(
+        model_name,
+        prompt,
+        model_class,
+        system_prompt="You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated",
+    ):
         """
         Run a prompt and return the structured output.
 
@@ -341,6 +311,9 @@ class AIManager(Singleton):
         instance = AIManager.get_instance()
         connection = instance.get_connection(model_name)
         chat_client = connection.get("chat_client")
+
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=prompt)]
+
         if not chat_client:
             raise ValueError(f"Chat client for model '{model_name}' not found.")
 
@@ -348,7 +321,7 @@ class AIManager(Singleton):
             # Chain definition
             chain = chat_client.with_structured_output(model_class)
             # Invoke the chain
-            response = chain.invoke(prompt)
+            response = chain.invoke(messages)
             return response
         except ValidationError as e:
             # Log the detailed validation errors, including the input data that failed
