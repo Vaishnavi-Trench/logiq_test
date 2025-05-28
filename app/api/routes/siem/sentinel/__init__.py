@@ -21,6 +21,9 @@ from app.services.siem.sentinel.tools import (
     sentinel_get_single_matching_record,  # Added import
     sentinel_get_alert_context,  # Added import
     fetch_sample_records,  # Added import
+    sentinel_generate_kql_query_template,  # Added new import
+    test_sentinel_generate_kql_query,  # Added new import
+    test_sentinel_choose_table,  # Added new import
 )
 
 
@@ -102,6 +105,26 @@ class SentinelGetSingleRecordRequest(BaseModel):
 class SentinelGetAlertContextRequest(BaseModel):
     task: Optional[str] = None
     alert: Any = Field(..., description="The Sentinel alert/event content.")
+
+
+class GenerateSentinelQueryTemplateRequest(BaseModel):
+    task: str
+    tables: List[str] = Field(..., description="List of table names to generate templates for")
+    alert_context: Dict = Field(..., description="The alert context dictionary")
+    triage_question: str = Field(..., description="The triage question text")
+
+
+class TestGenerateSentinelQueryRequest(BaseModel):
+    task: str = Field(..., description="The task description")
+    alert_context: Dict = Field(..., description="The alert context dictionary")
+    query_templates: List[str] = Field(..., description="List of query templates to test")
+
+
+class TestSentinelChooseTableRequest(BaseModel):
+    task: str = Field(..., description="The task description")
+    alert: str = Field(..., description="The alert string")
+    triage_question: str = Field(..., description="The triage question text")
+    alert_context: Dict = Field(..., description="The alert context dictionary")
 
 
 # Create router without prefix (prefix is added by parent router)
@@ -558,4 +581,177 @@ async def fetch_sample_records_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to fetch sample records: {str(e)}"},
+        )
+
+
+@router.post("/generate_query_template/{intcid}")
+async def generate_query_template_route(
+    request: Request,
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GenerateSentinelQueryTemplateRequest = Body(
+        ...,
+        description="Request to generate Sentinel KQL query templates",
+    ),
+):
+    """
+    Generate Sentinel KQL query templates based on the requirement, tables, and alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task, tables, alert context, and triage question.
+
+    Returns:
+        JSON object with generated Sentinel KQL query templates.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/generate_query_template/{intcid}: Task: {request_body.task}, Tables: {request_body.tables}"
+    )
+    try:
+        raw_body = await request.body()
+        Logger.info(
+            f"REQUEST PAYLOAD for generate_query_template/{intcid}: {raw_body.decode()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log request payload: {str(e)}")
+
+    try:
+        Logger.info(
+            f"VALIDATED REQUEST for generate_query_template/{intcid}: {request_body.json()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log validated request: {str(e)}")
+
+    try:
+        result = await sentinel_generate_kql_query_template(
+            intcid,
+            request_body.task,
+            request_body.tables,
+            request_body.alert_context,
+            request_body.triage_question,
+        )
+        return result
+
+    except Exception as e:
+        Logger.error(f"Error generating Sentinel KQL query templates: {str(e)}")
+        Logger.error(
+            f"Error generating Sentinel KQL query templates: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to generate Sentinel KQL query templates: {str(e)}"},
+        )
+
+
+@router.post("/test_generate_query/{intcid}")
+async def test_generate_query_route(
+    request: Request,
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: TestGenerateSentinelQueryRequest = Body(
+        ...,
+        description="Request to test generate Sentinel KQL queries",
+    ),
+):
+    """
+    Test generate Sentinel KQL queries based on query templates and alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task, alert context, and query templates.
+
+    Returns:
+        JSON object with generated test Sentinel KQL queries.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/test_generate_query/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        raw_body = await request.body()
+        Logger.info(
+            f"REQUEST PAYLOAD for test_generate_query/{intcid}: {raw_body.decode()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log request payload: {str(e)}")
+
+    try:
+        Logger.info(
+            f"VALIDATED REQUEST for test_generate_query/{intcid}: {request_body.json()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log validated request: {str(e)}")
+
+    try:
+        result = await test_sentinel_generate_kql_query(
+            intcid,
+            request_body.task,
+            request_body.alert_context,
+            request_body.query_templates,
+        )
+        return result
+
+    except Exception as e:
+        Logger.error(f"Error testing Sentinel KQL query generation: {str(e)}")
+        Logger.error(
+            f"Error testing Sentinel KQL query generation: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to test Sentinel KQL query generation: {str(e)}"},
+        )
+
+
+@router.post("/test_choose_table/{intcid}")
+async def test_choose_table_route(
+    request: Request,
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: TestSentinelChooseTableRequest = Body(
+        ...,
+        description="Request to test choose Sentinel tables",
+    ),
+):
+    """
+    Test choose appropriate Sentinel tables based on the alert and context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task, alert, triage question, and alert context.
+
+    Returns:
+        JSON object with chosen Sentinel tables.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/test_choose_table/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        raw_body = await request.body()
+        Logger.info(
+            f"REQUEST PAYLOAD for test_choose_table/{intcid}: {raw_body.decode()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log request payload: {str(e)}")
+
+    try:
+        Logger.info(
+            f"VALIDATED REQUEST for test_choose_table/{intcid}: {request_body.json()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log validated request: {str(e)}")
+
+    try:
+        result = await test_sentinel_choose_table(
+            intcid,
+            request_body.alert,
+            request_body.task,
+            request_body.triage_question,
+            request_body.alert_context,
+        )
+        return result
+
+    except Exception as e:
+        Logger.error(f"Error testing Sentinel table selection: {str(e)}")
+        Logger.error(
+            f"Error testing Sentinel table selection: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to test Sentinel table selection: {str(e)}"},
         )

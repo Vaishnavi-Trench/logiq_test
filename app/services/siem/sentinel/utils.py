@@ -458,6 +458,21 @@ class SentinelUtils:
                 )
                 return []
 
+    def get_table_list(self, intcid):
+        query = {
+            "intcid": intcid,
+            "type": "siem",
+            "vendor": "sentinel",
+            "subtype": "index_list",
+        }
+        table_list_collection = MongoDBManager.get_record_by_multiple_fields(
+            self.main_db, self.toolsmetadata_db, query
+        )
+        if table_list_collection:
+            return table_list_collection["indices"]
+        else:
+            return []
+    
     def validate_sentinel_kql(
         self, kql_query: str, intcid: str
     ) -> tuple[bool, str | None]:

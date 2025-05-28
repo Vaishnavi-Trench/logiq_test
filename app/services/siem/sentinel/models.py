@@ -47,6 +47,10 @@ class AlertContextResponse(BaseModel):
 
     alert_context: AlertContext
     
+class TableSelectionOutput(BaseModel):
+    """Output model for the table selection."""
+    table_names: List[str]
+    
 class QueryTemplateOutput(BaseModel):
     """Output model for the query template."""
     query_template: str
