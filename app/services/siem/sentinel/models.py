@@ -46,3 +46,7 @@ class AlertContextResponse(BaseModel):
     """Wrapper model for the alert context."""
 
     alert_context: AlertContext
+    
+class QueryTemplateOutput(BaseModel):
+    """Output model for the query template."""
+    query_template: str

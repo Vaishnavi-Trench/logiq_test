@@ -1028,6 +1028,64 @@ async def sentinel_generate_kql_query(
     return {"query": final_kql_query}
 
 
+async def sentinel_generate_kql_query_template(
+    intcid: str,
+    task: str,
+    tables: list,
+    alert_context: dict,
+    triage_question: str,
+) -> dict:
+    """Generates a KQL query template for a given task and context using AI.
+
+    Args:
+        intcid: The customer integration ID.
+        task: The specific task or information needed (requirement).
+        tables: The list of tables to generate a query template for.
+        alert_context: The alert context.
+
+    Returns:
+        A dictionary containing the generated KQL query template under the key 'query_template'.
+        Returns an error dictionary if generation fails.
+        Example success: {'query_template': 'SecurityEvent | where ...'}
+        Example error: {'error': 'Failed to generate valid KQL query template...'}
+    """
+    
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+    
+    query_templates = []
+    for table in tables:
+        schema = sentinel_utils.get_table_metadata(intcid, table)
+        if not schema or len(schema) < 0:
+            Logger.error(
+                f"Could not retrieve schema for table '{table}'. Cannot generate query."
+            )
+            return {"error": f"Failed to get schema for table {table}."}
+        
+        sample_records = await fetch_sample_records(intcid, table)
+        Logger.info(f"Fetched {len(sample_records)} sample records for {table}")
+        query_template_prompt = PromptManager.get_prompt_template(
+            intcid, "genix", "KQL_QUERY_TEMPLATE_PROMPT"
+        )
+        prompt_template = PromptTemplate.from_template(query_template_prompt)
+        prompt = prompt_template.invoke(
+            {"requirement": task, "triage_question": triage_question,"alert": alert_context, "table_name": table, "columns": schema, "sample_records": sample_records, "env": alert_context["env"]}
+        ).text
+        query_template = AIManager.run_prompt_with_structured_output(
+            PropX.get_property("module.llm.model"), prompt, sentinel_models.QueryTemplateOutput
+        )
+        query_template = query_template.model_dump()
+        query_template = query_template.get("query_template")
+        Logger.info(f"Query Template: {query_template}")
+        query_templates.append(query_template)
+        
+    return {"query_templates": query_templates}
+        
 async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict:
     """Executes a given KQL query against the Sentinel Log Analytics workspace.
 
