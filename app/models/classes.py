@@ -121,3 +121,23 @@ class BuildPlanValidatinFeedback(BaseModel):
     question_id: str
     validation_issues: Optional[str] = None
     validation_feedback: Optional[str] = None
+
+
+class AnalyzedQuestion(BaseModel):
+    question: str = Field(description="The triage question text")
+    importance: str = Field(description="Importance level: Critical/High/Medium/Low")
+    pass_condition: str = Field(
+        description="True if 'Yes' means normal behavior, False if 'Yes' means suspicious"
+    )
+    keep: bool = Field(
+        description="Whether to keep this question (true) or discard as redundant (false)"
+    )
+    reasoning: str = Field(
+        description="Explanation for importance, pass condition, and redundancy decisions"
+    )
+
+
+class AssignImportanceAndConditions(BaseModel):
+    analyzed_questions: List[AnalyzedQuestion] = Field(
+        description="List of analyzed questions with importance, conditions, and redundancy assessment"
+    )
