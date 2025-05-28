@@ -30,11 +30,10 @@ async def splunk_choose_index(intcid: str, requirement: str, alert: str) -> dict
         )
         return {"index_name": index_name, "sourcetype": sourcetype}
 
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "SPLUNK_INDEX_SELECTION_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "SPLUNK_INDEX_SELECTION_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
 
     formatted_prompt = prompt_template.invoke(
         {
@@ -65,11 +64,10 @@ async def _generate_splunk_query_with_steps(
 ) -> str:
     """Helper function to generate a Splunk query through all steps."""
     # Step 1: Generate query template
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "SPLUNK_QUERY_TEMPLATE_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "SPLUNK_QUERY_TEMPLATE_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "requirement": requirement,
@@ -83,11 +81,10 @@ async def _generate_splunk_query_with_steps(
     Logger.debug(f"Template generated: {splunk_query_template}")
 
     # Step 2: Field replacement
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "SPLUNK_FIELD_REPLACEMENT_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "SPLUNK_FIELD_REPLACEMENT_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {"query_template": splunk_query_template, "field_mapping": field_name_list}
     ).text
@@ -97,11 +94,10 @@ async def _generate_splunk_query_with_steps(
     Logger.debug(f"Fields replaced: {splunk_query}")
 
     # Step 3: Query sanitization
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "SPLUNK_QUERY_SANITIZER_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "SPLUNK_QUERY_SANITIZER_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "splunk_query": splunk_query,

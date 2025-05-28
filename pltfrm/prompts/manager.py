@@ -1,3 +1,6 @@
+import datetime
+from datetime import timezone  # Add timezone import
+
 from ..logger2 import Logger2 as Logger
 from ..mongo import MongoDBManager
 from ..propx import PropX
@@ -25,6 +28,8 @@ class PromptManager(Singleton):
 
         self.db = None
         self.collection = None
+        self.history_collection = None
+        self.history_id = None
 
     @staticmethod
     def get_instance():
@@ -53,6 +58,20 @@ class PromptManager(Singleton):
         """get openai client"""
         return self.collection
 
+    def set_history_collection(self, history_collection):
+        self.history_collection = history_collection
+
+    def get_history_collection(self):
+        return self.history_collection
+
+    def set_history_id(self, history_id):
+        """set history id"""
+        self.history_id = history_id
+
+    def get_history_id(self):
+        """get history id"""
+        return self.history_id
+
     @staticmethod
     def initialize():
         """initialize the OpenAI client"""
@@ -60,31 +79,37 @@ class PromptManager(Singleton):
         PromptManager.get_instance().set_collection(
             PropX.get_property("promptmgr.collection")
         )
+        PromptManager.get_instance().set_history_collection(
+            PropX.get_property("promptmgr.history.collection")
+        )
+        PromptManager.get_instance().set_history_id(
+            PropX.get_property("promptmgr.history.id")
+        )
 
     @staticmethod
     def get_prompt_template(intcid, module, name):
         """run a prompt"""
         prompt_template_str = ""
+        prompt_version = 0
 
-        Logger.info(
-            f"Getting prompt template for name from private {intcid}, name: {name}"
-        )
+        Logger.info(f"Getting prompt template for name from global, name: {name}")
         prompt_template_record = MongoDBManager.get_record_by_multiple_fields(
             PromptManager.get_instance().get_db(),
             PromptManager.get_instance().get_collection(),
-            {"intcid": intcid, "module": module, "name": name, "active": 1}
+            {"intcid": intcid, "module": module, "name": name, "active": 1},
         )
         if not prompt_template_record:
             Logger.info(f"Getting prompt template for name from global, name: {name}")
             prompt_template_record = MongoDBManager.get_record_by_multiple_fields(
                 PromptManager.get_instance().get_db(),
                 PromptManager.get_instance().get_collection(),
-                {"intcid": "1000", "module": module, "name": name, "active": 1}
+                {"intcid": "1000", "module": module, "name": name, "active": 1},
             )
 
         if prompt_template_record:
             Logger.info(f"Prompt template found for: {name}")
             prompt_template = prompt_template_record.get("sections")
+            prompt_version = prompt_template_record.get("version", 0)
             for section in prompt_template:
                 # Format the title in uppercase followed by ":"
                 title = section["title"].upper() + ":"
@@ -101,6 +126,98 @@ class PromptManager(Singleton):
             )
 
         # Log the final string
-        # Logger.info(f"Prompt template string: {prompt_template_str}")
+        Logger.info(f"Prompt template string: {prompt_template_str}")
 
-        return prompt_template_str
+        return prompt_template_str, prompt_version
+
+    @staticmethod
+    def save_triage_prompt_history(
+        intcid,
+        module,
+        aid,
+        prompt_template_name,
+        prompt_template_version,
+        model_name,
+        system_prompt,
+        user_prompt,
+        response,
+        model_class=None,
+    ):
+        """save prompt history"""
+        Logger.info(
+            f"Saving triage prompt history for intcid {intcid}, module {module}, aid {aid}"
+        )
+        try:
+            history_record = {
+                "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
+                "intcid": intcid,
+                "module": module,
+                "aid": aid,
+                "prompt_template_name": prompt_template_name,
+                "prompt_template_version": prompt_template_version,
+                "model_name": model_name,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "response": response,
+                "model_class": model_class.__name__ if model_class else None,
+                "type": "triage",
+            }
+            MongoDBManager.insert_record(
+                PromptManager.get_instance().get_db(),
+                PromptManager.get_instance().get_history_collection(),
+                history_record,
+            )
+        except Exception as e:
+            Logger.error(f"Error saving prompt history: {e}")
+            return
+
+        Logger.info("Prompt history saved successfully.")
+
+    @staticmethod
+    def save_prompt_history(
+        intcid,
+        module,
+        tid,
+        prompt_template_name,
+        prompt_template_version,
+        model_name,
+        system_prompt,
+        user_prompt,
+        response,
+        model_class=None,
+        qid=None,
+        step_id=None,
+        category=None,
+    ):
+        """save prompt history"""
+        Logger.info(
+            f"Saving prompt history for intcid {intcid}, module {module}, tid {tid}"
+        )
+        try:
+            history_record = {
+                "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
+                "intcid": intcid,
+                "module": module,
+                "tid": tid,
+                "prompt_template_name": prompt_template_name,
+                "prompt_template_version": prompt_template_version,
+                "model_name": model_name,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "response": response,
+                "model_class": model_class.__name__ if model_class else None,
+                "qid": qid,
+                "step_id": step_id,
+                "type": PromptManager.get_instance().get_history_id(),
+                "subtype": category if category else "general",
+            }
+            MongoDBManager.insert_record(
+                PromptManager.get_instance().get_db(),
+                PromptManager.get_instance().get_history_collection(),
+                history_record,
+            )
+        except Exception as e:
+            Logger.error(f"Error saving prompt history: {e}")
+            return
+
+        Logger.info("Prompt history saved successfully.")

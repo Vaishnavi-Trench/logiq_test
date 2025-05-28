@@ -27,11 +27,10 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
     Logger.info(f"tool:wazuh_get_source_ip_for_alert: {intcid}, {task}")
 
     customer_index_details = utils.get_indices_with_metadata(intcid)
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_INDEX_NAME_AND_ENVIRONMENT_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_INDEX_NAME_AND_ENVIRONMENT_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "alert": alert,
@@ -51,11 +50,10 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
     matching_records = utils.get_matching_records(
         intcid, index_name, '{"query":{"bool":{"must":[{"match_all":{}}]}}}'
     )
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "ALERT_CONTEXT_EXTRACTION_QUERY_BUILDER"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "ALERT_CONTEXT_EXTRACTION_QUERY_BUILDER"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "requirement": task,
@@ -192,11 +190,10 @@ async def wazuh_choose_index(
     index_name = RedisManager.get_key(redis_key)
     Logger.info(f"Cached index: {index_name}")
 
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_ENVIRONMENT_SELECTION_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_ENVIRONMENT_SELECTION_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "alert": alert,
@@ -218,11 +215,11 @@ async def wazuh_choose_index(
         )
         return {"index_name": index_name, "env": env}
 
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_INDEX_SELECTION_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_INDEX_SELECTION_PROMPT"
     )
+
+    prompt_template = PromptTemplate.from_template(_template)
 
     formatted_prompt = prompt_template.invoke(
         {
@@ -273,11 +270,10 @@ async def _generate_wazuh_query_template(
     Returns:
         The generated and refined Wazuh query template string.
     """
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_QUERY_TEMPLATE_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_QUERY_TEMPLATE_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "requirement": requirement,
@@ -294,11 +290,10 @@ async def _generate_wazuh_query_template(
     Logger.info(f"response generated: {query_generaton_response}")
 
     # Step 3: Query sanitization
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "text_json": query_generaton_response,
@@ -319,11 +314,10 @@ async def _generate_wazuh_query_template(
     # Reflection rounds now
     for attempt in range(3):
         Logger.info(f"Reflection round: {attempt}, query_template: {query_template}")
-        prompt_template = PromptTemplate.from_template(
-            PromptManager.get_prompt_template(
-                intcid, "logiq", "WAZUH_QUERY_TEMPLATE_REFLECTION_PROMPT"
-            )
+        _template, _version = PromptManager.get_prompt_template(
+            intcid, "logiq", "WAZUH_QUERY_TEMPLATE_REFLECTION_PROMPT"
         )
+        prompt_template = PromptTemplate.from_template(_template)
         formatted_prompt = prompt_template.invoke(
             {
                 "requirement": requirement,
@@ -340,11 +334,10 @@ async def _generate_wazuh_query_template(
         Logger.info(f"response generated: {query_generaton_response}")
 
         # Step 3: Query sanitization
-        prompt_template = PromptTemplate.from_template(
-            PromptManager.get_prompt_template(
-                intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
-            )
+        _template, _version = PromptManager.get_prompt_template(
+            intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
         )
+        prompt_template = PromptTemplate.from_template(_template)
         formatted_prompt = prompt_template.invoke(
             {
                 "text_json": query_generaton_response,
@@ -389,11 +382,10 @@ async def _replace_timerange_as_per_requirement(
         f"_replace_timerange_as_per_requirement: Recevied template: {wazuh_query_template}"
     )
     # Generate actual query
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_TIMERANGE_REPLACEMENT_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_TIMERANGE_REPLACEMENT_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "requirement": requirement,
@@ -432,11 +424,10 @@ async def _generate_wazuh_query_using_template(
         f"_generate_wazuh_query_using_template: Recevied template: {wazuh_query_template}"
     )
     # Generate actual query
-    prompt_template = PromptTemplate.from_template(
-        PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_FIELD_VALUE_REPLACEMENT_PROMPT"
-        )
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "WAZUH_FIELD_VALUE_REPLACEMENT_PROMPT"
     )
+    prompt_template = PromptTemplate.from_template(_template)
     formatted_prompt = prompt_template.invoke(
         {
             "requirement": requirement,

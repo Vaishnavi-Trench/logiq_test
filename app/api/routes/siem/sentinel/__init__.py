@@ -120,7 +120,14 @@ class SentinelGetAlertContextRequest(BaseModel):
 
 class GenerateSentinelQueryTemplateRequest(BaseModel):
     task: str
-    tables: List[str] = Field(..., description="List of table names to generate templates for")
+    tid: str = Field(..., description="The triage ID.")
+    question_id: str = Field(
+        ..., description="The specific question ID within the triage process."
+    )
+    step_id: str = Field(..., description="The specific step id of triage plan.")
+    tables: List[str] = Field(
+        ..., description="List of table names to generate templates for"
+    )
     alert_context: Dict = Field(..., description="The alert context dictionary")
     triage_question: str = Field(..., description="The triage question text")
 
@@ -128,7 +135,9 @@ class GenerateSentinelQueryTemplateRequest(BaseModel):
 class TestGenerateSentinelQueryRequest(BaseModel):
     task: str = Field(..., description="The task description")
     alert_context: Dict = Field(..., description="The alert context dictionary")
-    query_templates: List[str] = Field(..., description="List of query templates to test")
+    query_templates: List[str] = Field(
+        ..., description="List of query templates to test"
+    )
 
 
 class TestSentinelChooseTableRequest(BaseModel):
@@ -677,6 +686,9 @@ async def generate_query_template_route(
     try:
         result = await sentinel_generate_kql_query_template(
             intcid,
+            request_body.tid,
+            request_body.question_id,
+            request_body.step_id,
             request_body.task,
             request_body.tables,
             request_body.alert_context,
@@ -691,7 +703,9 @@ async def generate_query_template_route(
         )
         return JSONResponse(
             status_code=500,
-            content={"error": f"Failed to generate Sentinel KQL query templates: {str(e)}"},
+            content={
+                "error": f"Failed to generate Sentinel KQL query templates: {str(e)}"
+            },
         )
 
 
@@ -748,7 +762,9 @@ async def test_generate_query_route(
         )
         return JSONResponse(
             status_code=500,
-            content={"error": f"Failed to test Sentinel KQL query generation: {str(e)}"},
+            content={
+                "error": f"Failed to test Sentinel KQL query generation: {str(e)}"
+            },
         )
 
 
