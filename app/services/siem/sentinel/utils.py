@@ -186,6 +186,123 @@ class SentinelUtils:
             self.workspace_id = None
             return None
 
+    def list_all_rules(self):
+        if not self.mgmt_access_token:
+            Logger.error(
+                "Authentication required before listing tables. Call authenticate() first."
+            )
+            return False, "Authentication error: no access token available."
+
+        # Use instance variables
+        if not all(
+            [
+                self.subscription_id,
+                self.resource_group_name,
+                self.workspace_name,
+                self.mgmt_api_version,
+            ]
+        ):
+            Logger.error(
+                "Missing one or more workspace properties (subscription_id, resource_group_name, workspace_name, mgmt_api_version) from configuration."
+            )
+            return False, "Configuration error: missing workspace properties."
+
+        # Use a supported API version specifically for alert rules
+        alert_rules_api_version = (
+            "2023-11-01"  # Using one of the supported versions from the error message
+        )
+
+        alert_rules_url = (
+            f"https://management.azure.com/subscriptions/{self.subscription_id}"
+            f"/resourceGroups/{self.resource_group_name}/providers/Microsoft.OperationalInsights"
+            f"/workspaces/{self.workspace_name}/providers/Microsoft.SecurityInsights"
+            f"/alertRules?api-version={alert_rules_api_version}"
+        )
+        mgmt_headers = {
+            "Authorization": f"Bearer {self.mgmt_access_token.token}",
+            "Content-Type": "application/json",
+        }
+        Logger.debug(f"Calling REST API URL to list rules: {alert_rules_url}")
+        try:
+            response = requests.get(alert_rules_url, headers=mgmt_headers)
+            response.raise_for_status()
+            rules_data = response.json()
+            all_rules = rules_data.get("value", [])
+
+            final_rule_list = []
+            for rule in all_rules:
+                try:
+                    rule_name = rule.get("name")
+                    rule_id = rule.get("id")
+                    rule_type = rule.get("type")
+                    rule_kind = rule.get(
+                        "kind", "unknown"
+                    )  # Default to Scheduled if not present
+                    rule_properties = rule.get("properties", {})
+                    display_name = rule_properties.get("displayName", "Unknown Rule")
+                    description = rule_properties.get(
+                        "description", "No description provided"
+                    )
+                    severity = rule_properties.get("severity", "Unknown")
+                    tactics = rule_properties.get("tactics", [])
+                    techniques = rule_properties.get("techniques", [])
+                    enabled = rule_properties.get("enabled", False)
+                    last_modified_time = rule_properties.get(
+                        "lastModifiedUtc", "Unknown"
+                    )
+
+                    rule_record = {
+                        "rule_name": rule_name,
+                        "rule_id": rule_id,
+                        "rule_type": rule_type,
+                        "display_name": display_name,
+                        "description": description,
+                        "severity": severity,
+                        "tactics": tactics,
+                        "techniques": techniques,
+                        "enabled": enabled,
+                        "last_modified_time": last_modified_time,
+                        "kind": rule_kind,
+                    }
+
+                    if rule_kind == "Scheduled":
+                        # For Scheduled rules, we can extract the query
+                        query = rule_properties.get("query", "")
+                        query_frequency = rule_properties.get(
+                            "queryFrequency", "Unknown"
+                        )
+                        query_period = rule_properties.get("queryPeriod", "Unknown")
+
+                        rule_record.update(
+                            {
+                                "query": query,
+                                "query_frequency": query_frequency,
+                                "query_period": query_period,
+                            }
+                        )
+
+                    final_rule_list.append(rule_record)
+                except Exception as e:
+                    Logger.error(
+                        f"Error processing rule {rule.get('name', 'Unknown')}: {e}"
+                    )
+                    Logger.debug(traceback.format_exc())
+
+            Logger.debug(f"Successfully listed {len(final_rule_list)} rules.")
+            return True, final_rule_list
+        except requests.exceptions.RequestException as e:
+            Logger.error(f"HTTP error listing tables: {e}")
+            if hasattr(e, "response") and e.response is not None:
+                Logger.error(f"Response Status Code: {e.response.status_code}")
+                try:
+                    Logger.error(f"Response Body: {e.response.json()}")
+                except ValueError:
+                    Logger.error(f"Response Body: {e.response.text}")
+            return False, "Request exception occurred while listing rules."
+        except Exception as e:
+            Logger.error(f"Unexpected error listing tables: {e}")
+            return False, "Unexpected error occurred while listing rules."
+
     def list_all_tables(self):
         """Lists all tables in the workspace via the Management API."""
         if not self.mgmt_access_token:
@@ -472,7 +589,7 @@ class SentinelUtils:
             return table_list_collection["indices"]
         else:
             return []
-    
+
     def validate_sentinel_kql(
         self, kql_query: str, intcid: str
     ) -> tuple[bool, str | None]:

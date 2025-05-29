@@ -282,6 +282,30 @@ async def test_sentinel_choose_table(
     return {"chosen_tables": table_names}
 
 
+async def get_detection_rules(intcid: str, task: str) -> dict:
+    """Fetches detection rules from Sentinel."""
+    Logger.info(f"tool:get_detection_rules: Starting for {intcid} {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+
+    status, response = sentinel_utils.list_all_rules()
+    if not status:
+        Logger.error("Failed to list rules from Azure Management API.")
+        return {
+            "status": False,
+            "rules": [],
+            "error": response,
+        }
+
+    return {"status": True, "rules": response}
+
+
 async def get_sentinel_tables_with_schema(intcid: str, task: str) -> dict:
     """Fetches Sentinel Log Management tables that contain data, along with their schemas.
 

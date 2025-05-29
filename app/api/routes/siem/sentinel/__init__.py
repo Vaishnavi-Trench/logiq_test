@@ -10,6 +10,7 @@ import json
 
 # Assuming these are implemented in the services layer
 from app.services.siem.sentinel.tools import (
+    get_detection_rules,
     get_sentinel_tables_with_schema,
     get_sentinel_table_row_count,
     get_sentinel_table_schema,
@@ -30,6 +31,10 @@ from app.services.siem.sentinel.tools import (
 
 # Request models
 class sentinelTableRequest(BaseModel):
+    task: Optional[str] = None
+
+
+class sentinelDetectionRulesRequest(BaseModel):
     task: Optional[str] = None
 
 
@@ -149,6 +154,41 @@ class TestSentinelChooseTableRequest(BaseModel):
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["sentinel"])
+
+
+@router.post("/get_detection_rules/{intcid}")
+async def get_detection_rules_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: sentinelDetectionRulesRequest = Body(
+        ..., description="request for detection rules"
+    ),
+):
+    """
+    Retrieves all Log Management tables from Sentinel that contain data,
+    along with their schemas. # Corrected docstring
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing task information
+
+    Returns:
+        JSON object with table names and their schemas
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_detection_rules/{intcid}: {request.task}"  # Corrected path in log
+    )
+    try:
+        result = await get_detection_rules(intcid, request.task)
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting rules {str(e)}")
+        Logger.error(
+            f"Error in get_detection_rules: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get rules from sentinel: {str(e)}"},
+        )
 
 
 @router.post("/get_tables/{intcid}")
