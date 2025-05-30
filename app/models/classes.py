@@ -198,3 +198,34 @@ class AlertContextResponse(BaseModel):
     """Wrapper model for the alert context."""
 
     alert_context: AlertContext
+
+
+########radar classes
+class SuggestedRule(BaseModel):
+    """Represents a suggested rule based on alert context."""
+
+    name: str
+    description: str
+    intention: str
+    reason: str
+    fields_needed: List[str]
+    query_instructions: str
+    importance: Literal["Critical", "High", "Medium", "Low"]
+
+
+class SuggestedRules(BaseModel):
+    """Model for suggesting rules based on alert context."""
+
+    rules: List[SuggestedRule] = Field(default_factory=list)
+
+
+class DataSource(BaseModel):
+    name: str
+    reason: str
+    confidence: Literal["High", "Medium", "Low"]
+
+
+class DataSources(BaseModel):
+    """Model for suggesting rules based on alert context."""
+
+    sources: List[DataSource] = Field(default_factory=list)
