@@ -1641,6 +1641,27 @@ async def sentinel_generate_kql_query_template(
     if not workspace_id:
         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
+    try:
+        _query_template_record = sentinel_utils.get_kql_template_data_from_mongo(
+            intcid=intcid, env=alert_context["env"], tid=tid, question_id=question_id, step_id=step_id
+        )
+
+        if _query_template_record:
+            Logger.info(
+                f"Found KQL template in MongoDB for {intcid}, table: {tables}"
+            )
+            _query_template = _query_template_record.get("query_template", None)
+            if _query_template and _query_template != "":
+                Logger.info(
+                    f"Using cached KQL template for {intcid}, table: {tables}"
+                )
+                return {"query_templates": [_query_template]}
+    except Exception as e:
+        Logger.error(f"Error getting KQL template from MongoDB: {e}")
+        pass
+        
+    
+    
     query_templates = []
     for table in tables:
         schema_query = f"{table} | getschema"
