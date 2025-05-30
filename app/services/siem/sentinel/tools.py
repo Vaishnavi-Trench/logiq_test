@@ -384,7 +384,7 @@ async def sentinel_choose_table(
             
             
             response = AIManager.run_prompt_with_structured_output(
-                PropX.get_property("module.desc.enrichment.model"), prompt, sentinel_models.TableNames
+                model_name, prompt, sentinel_models.TableNames
             )
             Logger.debug(f"AI response for table selection: {response}")
             response_data = response.model_dump()
