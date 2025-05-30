@@ -24,7 +24,7 @@ from app.services.siem.sentinel.tools import (
     sentinel_get_alert_context,  # Added import
     fetch_sample_records,  # Added import
     sentinel_generate_kql_query_template,  # Added new import
-    test_sentinel_generate_kql_query,  # Added new import
+    # test_sentinel_generate_kql_query,  # Added new import
     test_sentinel_choose_table,  # Added new import
 )
 
@@ -137,7 +137,7 @@ class GenerateSentinelQueryTemplateRequest(BaseModel):
     triage_question: str = Field(..., description="The triage question text")
 
 
-class TestGenerateSentinelQueryRequest(BaseModel):
+class TestSentinelPrepareQueryRequest(BaseModel):
     task: str = Field(..., description="The task description")
     alert_context: Dict = Field(..., description="The alert context dictionary")
     query_templates: List[str] = Field(
@@ -753,7 +753,14 @@ async def generate_query_template_route(
 async def test_generate_query_route(
     request: Request,
     intcid: str = Path(..., description="Customer ID"),
-    request_body: TestGenerateSentinelQueryRequest = Body(
+    task: str = Path(..., description="Task"),
+    tid: str = Path(..., description="Triage ID"),
+    question_id: str = Path(..., description="Question ID"),
+    step_id: str = Path(..., description="Step ID"),
+    triage_question: str = Path(..., description="Triage Question"),
+    alert_context: Dict = Path(..., description="Alert Context"),
+    query_templates: List[str] = Path(..., description="Query Templates"),
+    request_body: TestSentinelPrepareQueryRequest = Body(
         ...,
         description="Request to test generate Sentinel KQL queries",
     ),
@@ -787,7 +794,7 @@ async def test_generate_query_route(
         Logger.error(f"Failed to log validated request: {str(e)}")
 
     try:
-        result = await test_sentinel_generate_kql_query(
+        result = await sentinel_prepare_kql_query(
             intcid,
             request_body.task,
             request_body.alert_context,

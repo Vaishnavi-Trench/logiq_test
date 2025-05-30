@@ -568,7 +568,8 @@ class SentinelUtils:
             # Check if the collection has the expected structure
             if "fields" in table_metadata_collection:
                 Logger.debug(f"Found table metadata for '{table_name}' in MongoDB.")
-                return table_metadata_collection["fields"]
+                fields = table_metadata_collection["fields"]
+                return fields
             else:
                 Logger.warn(
                     f"Table metadata for '{table_name}' does not contain 'fields' key. Returning empty list."
@@ -1232,3 +1233,29 @@ class SentinelUtils:
         except json.JSONDecodeError as e:
             Logger.error(f"Failed to parse JSON: {e}")
             raise ValueError(f"Failed to parse JSON: {e}")
+
+
+    def extract_field_placeholders(self, query_template: str) -> list[str]:
+        """
+        Extracts placeholder keys from <<field.PlaceholderKey>> style placeholders
+        in a KQL query template string.
+
+        Args:
+            query_template: The KQL query template string.
+
+        Returns:
+            A list of extracted placeholder keys (the 'PlaceholderKey' part).
+            Returns an empty list if no such placeholders are found.
+        """
+        # Regex to find <<field.PlaceholderKey>> and capture 'PlaceholderKey'
+        # It looks for:
+        # - "<<field." literal string (dot is escaped)
+        # - Then captures one or more characters that are not ">" (([^>]+)) - this is the PlaceholderKey
+        # - Followed by ">>" literal string
+        pattern = r"<<field\.([^>]+)>>"
+        
+        extracted_keys = re.findall(pattern, query_template)
+        
+        return extracted_keys
+
+       
