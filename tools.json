@@ -507,27 +507,6 @@
       }
     },
     {
-      "name": "siem/sentinel/get_tables",
-      "description": "Fetches all tables and their schemas from Microsoft Sentinel. Below parameters are mandatory inputs to this tool.",
-      "input": [
-        {
-          "name": "task",
-          "type": "string",
-          "description": "Well explained, pointed task statement to perform which tool is capable of doing. Example: \"Get all tables and their schemas from Microsoft Sentinel\""
-        }
-      ],
-      "output": {
-        "tables_with_schema": {
-          "<table_name1>": [
-            "<available_field1>",
-            "<available_field2>",
-            "<...>"
-          ],
-          "<table_name2>": ["<available_field1>", "<available_field2>", "<...>"]
-        }
-      }
-    },
-    {
       "name": "siem/sentinel/generate_query",
       "description": "Generates a Sentinel KQL query based on the input parameters given below. Below parameters are mandatory inputs to this tool. use table name derived from choose_table tool and use run_query to run generated query.",
       "input": [
