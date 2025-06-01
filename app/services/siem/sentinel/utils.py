@@ -827,7 +827,7 @@ class SentinelUtils:
             Logger.warn(
                 "Missing required fields for persisting KQL template data. Skipping."
             )
-            return
+            return None
 
         try:
             # Define filter similar to Wazuh, mapping Sentinel concepts
@@ -854,7 +854,7 @@ class SentinelUtils:
                 Logger.error(
                     "MongoDB database or collection name not configured in PropX (module.integration.config.db / module.query.template.cache.collection). Cannot get KQL data."
                 )
-                return
+                return None
 
             # Call the upsert method from MongoDBManager
             # Assumes MongoDBManager.upsert_record(db_name, collection_name, filter_dict, update_dict) signature
@@ -877,6 +877,7 @@ class SentinelUtils:
             Logger.error(
                 f"Failed to push KQL template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
             )
+            return None
 
     def push_table_name_to_mongo(
         self, intcid, vendor, env, tid, question_id, step_id, requirement, index_name

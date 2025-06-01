@@ -1287,10 +1287,9 @@ async def _generate_sentinel_kql_from_template(
 #         task: The specific task or information needed (requirement).
 #         table_name: The name of the target Sentinel table.
 #         tid: Triage ID for caching/persistence.
-#         question_id: Question ID for caching/persistence.
-#         triage_question: Original question text for persistence.
-#         alert: Relevant data (like an alert or event details) as dict or JSON string.
-#         env: Environment identifier.
+#         question_id: The specific question ID within the triage process.
+#         triage_question: The text of the triage question being addressed.
+#         alert: The relevant alert/event content (dict or JSON string).
 
 #     Returns:
 #         A dictionary containing the generated KQL query under the key 'query'.
@@ -1439,8 +1438,7 @@ async def sentinel_generate_kql_query(
     question_id: str,
     step_id: str,
     triage_question: str,
-    alert_context: any,  # Accept dict or string
-    env: str,
+    alert_context: dict,  # Accept dict or string
 ) -> dict:
     """Generates a Sentinel KQL query for a specific task and context using AI.
 
@@ -1452,9 +1450,9 @@ async def sentinel_generate_kql_query(
         task: The specific task or information needed (requirement).
         table_name: The name of the target Sentinel table.
         tid: Triage ID for caching/persistence.
-        question_id: Question ID for caching/persistence.
-        triage_question: Original question text for persistence.
-        alert: Relevant data (like an alert or event details) as dict or JSON string.
+        question_id: The specific question ID within the triage process.
+        triage_question: The text of the triage question being addressed.
+        alert: The relevant alert/event content (dict or JSON string).
         env: Environment identifier.
 
     Returns:
@@ -1483,65 +1481,88 @@ async def sentinel_generate_kql_query(
         )
         return {"error": f"Failed to get schema for table {table_name}."}
 
-    query_template = None
-    final_kql_query = None
-   
-    alert_str = (
-        json.dumps(alert_context)
-        if isinstance(alert_context, dict)
-        else str(alert_context)
-    )
-    msg = ""  # Initialize msg
-    env = env.lower()
-    query_template = await sentinel_generate_kql_query_template(
-        intcid=intcid,
-        tid=tid,
-        question_id=question_id,
-        step_id=step_id,
-        task=task,
-        tables=[table_name],
-        alert_context=alert_context,
-        triage_question=triage_question,
-    )
-    query_template = query_template.get("query_templates")[0]
-    Logger.info(f"Query Template: {query_template}")
+    max_retries = 5
+    last_error_msg = ""
+    for attempt in range(max_retries):
+        query_template = None
+        final_kql_query = None
 
-    final_kql_query = await sentinel_prepare_kql_query(
-        intcid=intcid,
-        task=task,
-        table_name=table_name,
-        tid=tid,
-        question_id=question_id,
-        step_id=step_id,
-        triage_question=triage_question,
-        alert_context=alert_context,
-        query_templates=[query_template],
-    )
-    final_kql_query = final_kql_query.get("queries")[0]
-    Logger.info(f"Final KQL Query: {final_kql_query}")
-
-    # --- Persistence Hook ---
-    if query_template and final_kql_query:
+        env = alert_context.get("env", "UNKNOWN").lower()
         try:
-            sentinel_utils.push_kql_template_data_to_mongo(
+            query_template_resp = await sentinel_generate_kql_query_template(
                 intcid=intcid,
-                siem_type="sentinel",
-                env=env,
+                tid=tid,
+                question_id=question_id,
+                step_id=step_id,
+                task=task,
+                tables=[table_name],
+                alert_context=alert_context,
+                triage_question=triage_question,
+            )
+            if "error" in query_template_resp:
+                last_error_msg = query_template_resp["error"]
+                Logger.warn(f"Attempt {attempt+1}: Failed to generate query template: {last_error_msg}")
+                continue
+            query_template = query_template_resp.get("query_templates")[0]
+            Logger.info(f"Query Template: {query_template}")
+
+            final_kql_query_resp = await sentinel_prepare_kql_query(
+                intcid=intcid,
+                task=task,
+                table_name=table_name,
                 tid=tid,
                 question_id=question_id,
                 step_id=step_id,
                 triage_question=triage_question,
-                requirement=task,
-                table_name=table_name,
-                query_template=query_template,
-                final_query=final_kql_query,
+                alert_context=alert_context,
+                query_templates=[query_template],
             )
-        except Exception as persist_e:
-            Logger.warn(f"Failed to persist KQL template/query: {persist_e}")
+            if "error" in final_kql_query_resp:
+                last_error_msg = final_kql_query_resp["error"]
+                Logger.warn(f"Attempt {attempt+1}: Failed to prepare final query: {last_error_msg}")
+                continue
+            final_kql_query = final_kql_query_resp.get("queries")[0]
+            Logger.info(f"Final KQL Query: {final_kql_query}")
 
-    Logger.info(f"Successfully generated and validated KQL query for task: {task}")
-    Logger.debug(f"Final KQL query: {final_kql_query}")
-    return {"query": final_kql_query}
+            isValid, msg = sentinel_utils.validate_sentinel_kql(
+                final_kql_query, intcid
+            )
+            if isValid:
+                # --- Persistence Hook ---
+                if query_template and final_kql_query:
+                    try:
+                        sentinel_utils.push_kql_template_data_to_mongo(
+                            intcid=intcid,
+                            siem_type="sentinel",
+                            env=env,
+                            tid=tid,
+                            question_id=question_id,
+                            step_id=step_id,
+                            triage_question=triage_question,
+                            requirement=task,
+                            table_name=table_name,
+                            query_template=query_template,
+                            final_query=final_kql_query,
+                        )
+                    except Exception as persist_e:
+                        Logger.warn(f"Failed to persist KQL template/query: {persist_e}")
+
+                Logger.info(f"Successfully generated and validated KQL query for task: {task}")
+                Logger.debug(f"Final KQL query: {final_kql_query}")
+                return {"query": final_kql_query}
+            else:
+                last_error_msg = msg
+                Logger.warn(f"Attempt {attempt+1}: Generated KQL failed validation: {msg}")
+        except Exception as e:
+            last_error_msg = str(e)
+            Logger.error(f"Attempt {attempt+1}: Exception during query generation: {e}")
+
+    Logger.error(
+        f"Failed to generate a valid KQL query after {max_retries} attempts for task: {task}"
+    )
+    return {
+        "error": f"Failed to generate valid KQL after {max_retries} attempts. Last error: {last_error_msg}"
+    }
 
 
 
@@ -1569,15 +1590,27 @@ async def sentinel_prepare_kql_query(
         )
         
         fields_list = sentinel_utils.extract_field_placeholders(query_template)
-        
-        field_values_list=[]
+        fields_metadata = sentinel_utils.get_table_metadata(intcid, table_name)
+        field_values_list = []
         for field in fields_list:
-            fields_metadata = sentinel_utils.get_table_metadata(intcid, table_name, field)
-            field_value_dict = {
-                "field": field,
-                "description": fields_metadata.get("desc", ""),
-                "field_values": fields_metadata.get("values", []),
-            }
+            # Find the metadata dict for this field
+            field_meta = next(
+                (f for f in fields_metadata if f.get("field") == field), 
+                None
+            )
+            if field_meta:
+                field_value_dict = {
+                    "field": field_meta.get("field", ""),
+                    "description": field_meta.get("desc", ""),
+                    "field_values": field_meta.get("field_values", []),
+                }
+            else:
+                # If not found, send empty/defaults
+                field_value_dict = {
+                    "field": field,
+                    "description": "",
+                    "field_values": [],
+                }
             field_values_list.append(field_value_dict)
         
         replacement_prompt_template = PromptTemplate.from_template(_template)
@@ -1642,20 +1675,15 @@ async def sentinel_generate_kql_query_template(
         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
     try:
-        _query_template_record = sentinel_utils.get_kql_template_data_from_mongo(
+        _query_template = sentinel_utils.get_kql_template_data_from_mongo(
             intcid=intcid, env=alert_context["env"], tid=tid, question_id=question_id, step_id=step_id
         )
 
-        if _query_template_record:
+        if _query_template and _query_template != "":
             Logger.info(
-                f"Found KQL template in MongoDB for {intcid}, table: {tables}"
+                f"Using cached KQL template for {intcid}, table: {tables}"
             )
-            _query_template = _query_template_record.get("query_template", None)
-            if _query_template and _query_template != "":
-                Logger.info(
-                    f"Using cached KQL template for {intcid}, table: {tables}"
-                )
-                return {"query_templates": [_query_template]}
+            return {"query_templates": [_query_template]}
     except Exception as e:
         Logger.error(f"Error getting KQL template from MongoDB: {e}")
         pass
@@ -1808,6 +1836,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
                 "message", http_err.response.text
             )
             Logger.error(f"Query Error Details: {error_content}")
+            
         except ValueError:
             error_details = http_err.response.text
             Logger.error(f"Query Error Details (non-JSON): {error_details}")
@@ -2074,7 +2103,6 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
     #             Logger.info(f"No sample matching records found for '{target_table_name}'.")
     #         else:
     #             Logger.info(f"Found {len(matching_records)} sample matching records for '{target_table_name}'.")
-    #             matching_records_str = json.dumps(matching_records)
     # else:
     #     Logger.warn("Target table name unknown. Cannot fetch sample records.")
 

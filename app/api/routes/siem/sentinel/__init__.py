@@ -82,7 +82,6 @@ class GenerateSentinelQueryRequest(BaseModel):
     triage_question: str
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
-    env: str
 
 
 # --- New Request Models ---
@@ -443,7 +442,7 @@ async def generate_query_route(
         JSON object with generated Sentinel KQL query.
     """
     Logger.info(
-        f"api: /siem/sentinel/generate_query{intcid}: {request_body.task}, {request_body.tid}, {request_body.question_id}, {request_body.triage_question}, {request_body.table_name}, {request_body.env}"
+        f"api: /siem/sentinel/generate_query{intcid}: {request_body.task}, {request_body.tid}, {request_body.question_id}, {request_body.triage_question}, {request_body.table_name}"
     )
     try:
         raw_body = await request.body()
@@ -469,7 +468,6 @@ async def generate_query_route(
             request_body.step_id,
             request_body.triage_question,
             request_body.alert_context,
-            request_body.env,
         )
         return result
 

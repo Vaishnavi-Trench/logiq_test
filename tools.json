@@ -534,11 +534,6 @@
           "name": "alert_context",
           "type": "dict",
           "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
-        },
-        {
-          "name": "env",
-          "type": "string",
-          "description": "Mandatory: Operating system environment chosen in previous steps."
         }
       ],
       "output": {
