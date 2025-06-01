@@ -590,27 +590,6 @@
       }
     },
     {
-      "name": "siem/sentinel/get_single_matching_record",
-      "description": "Fetches a single record matching a specific KQL query from a Sentinel table. Assumes the KQL query is designed to return at most one record. Below parameters are mandatory inputs to this tool.",
-      "input": [
-        {
-          "name": "table_name",
-          "type": "string",
-          "description": "Mandatory: The name of the Sentinel table targeted by the query."
-        },
-        {
-          "name": "query",
-          "type": "string",
-          "description": "Mandatory: The KQL query string expected to return a single record."
-        }
-      ],
-      "output": {
-        "table_name": "type: String, description: The name of the Sentinel table queried.",
-        "kql_query": "type: String, description: The KQL query string executed.",
-        "result": "type: String, description: The single record returned by the query."
-      }
-    },
-    {
       "name": "siem/sentinel/get_alert_context",
       "description": "Retrieves context for a given Sentinel alert/event using AI. Determines relevant table/environment, fetches sample records, and extracts context based on the task. Below parameters are mandatory inputs to this tool.",
       "input": [
