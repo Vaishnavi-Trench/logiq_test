@@ -1549,6 +1549,8 @@ async def sentinel_generate_kql_query(
 
                 Logger.info(f"Successfully generated and validated KQL query for task: {task}")
                 Logger.debug(f"Final KQL query: {final_kql_query}")
+                #Sanitize KQL query
+                final_kql_query = final_kql_query.replace('\\n', '\n')
                 return {"query": final_kql_query}
             else:
                 last_error_msg = msg
@@ -1792,6 +1794,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     query_payload = json.dumps({"query": kql_query})
 
     all_records = []
+   
     try:
         query_response = requests.post(
             query_url, headers=la_headers, data=query_payload, timeout=60
