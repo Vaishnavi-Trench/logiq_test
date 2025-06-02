@@ -583,46 +583,6 @@
         "table_name": "type: String, description: The name of the chosen Sentinel table.",
         "env": "type: String, description: The operating system environment chosen in previous steps."
       }
-    },
-    {
-      "name": "siem/sentinel/get_alert_context",
-      "description": "Retrieves context for a given Sentinel alert/event using AI. Determines relevant table/environment, fetches sample records, and extracts context based on the task. Below parameters are mandatory inputs to this tool.",
-      "input": [
-        {
-          "name": "alert",
-          "type": "string",
-          "description": "Mandatory: The Sentinel alert/event content as a JSON string."
-        }
-      ],
-      "output": {
-        "alert_context": {
-          "alert_classification": {
-            "category": "type: String, description: The category of the alert (e.g., host, network, cloud, identity, etc.)",
-            "sub_category": [
-              "malware",
-              "file",
-              "process",
-              "user_activity",
-              "system",
-              "etc..."
-            ]
-          },
-          "extracted_fields": {
-            "<key1>": {
-              "description": "type: String, description: The description of the field",
-              "field_name": "type: String, description: The name of the field, it can be a nested field as well",
-              "value": "type: String, description: The value of the field",
-              "confidence": "type: String, description: The confidence level of LLM on the extracted field, value, high/medium/low"
-            },
-            "source_ip<this is example only>": {
-              "description": "source_ip: Source IP address involved",
-              "field_name": "alert.Entities[1].Address",
-              "value": "196.251.85.62",
-              "confidence": "high"
-            }
-          }
-        }
-      }
     }
   ]
 }
