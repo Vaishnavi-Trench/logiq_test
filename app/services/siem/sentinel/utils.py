@@ -2,6 +2,8 @@
 
 from azure.identity import ClientSecretCredential
 from azure.core.exceptions import ClientAuthenticationError
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.loganalytics import LogAnalyticsManagementClient
 import requests
 import json
 import traceback
@@ -713,7 +715,7 @@ class SentinelUtils:
             tid: Triage ID.
             question_id: Question ID within the triage.
             triage_question: The original text of the triage question.
-            requirement: The specific requirement or task for the query.
+            requirement: The specific requirement or task for the query from tools.py call
             table_name: The target Sentinel table name.
             query_template: The generated KQL template (before value replacement).
             final_query: The final, executable KQL query.
@@ -1235,7 +1237,6 @@ class SentinelUtils:
             Logger.error(f"Failed to parse JSON: {e}")
             raise ValueError(f"Failed to parse JSON: {e}")
 
-
     def extract_field_placeholders(self, query_template: str) -> list[str]:
         """
         Extracts placeholder keys from <<field.PlaceholderKey>> style placeholders
@@ -1254,9 +1255,39 @@ class SentinelUtils:
         # - Then captures one or more characters that are not ">" (([^>]+)) - this is the PlaceholderKey
         # - Followed by ">>" literal string
         pattern = r"<<field\.([^>]+)>>"
-        
+
         extracted_keys = re.findall(pattern, query_template)
-        
+
         return extracted_keys
 
-       
+    def get_sentinel_functions(self):
+        
+        credential = ClientSecretCredential(
+                tenant_id=self.tenant_id,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+        )
+        log_analytics_client = LogAnalyticsManagementClient(credential, self.subscription_id)
+        Logger.info(f"Log_AnalyticsClient: {log_analytics_client}")
+        try:
+            Logger.info(f"Listing saved searches in Log Analytics workspace: {self.workspace_name}\n")
+            saved_searches = log_analytics_client.saved_searches.list_by_workspace(
+                resource_group_name=self.resource_group_name,
+                workspace_name=self.workspace_name
+            )
+            Logger.info(f"Saved Searches: {saved_searches}")
+            kql_functions = []
+            for search in saved_searches.value:
+                kql_functions.append({
+                    "name": getattr(search, "display_name", None),
+                    "alias": getattr(search, "function_alias", None),
+                    "category": getattr(search, "category", None),
+                    "query": getattr(search, "query", None),
+                })
+            Logger.info(f"All SavedSearches (with possible KQL functions): {kql_functions}")
+            if not kql_functions:
+                Logger.info("No KQL functions found based on current criteria.")
+        except Exception as e:
+            Logger.info(f"An error occurred: {e}")
+            return []
+        return kql_functions

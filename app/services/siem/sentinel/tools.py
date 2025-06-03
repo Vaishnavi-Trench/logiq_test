@@ -2253,3 +2253,35 @@ async def fetch_sample_records(intcid: str, table_name: str, limit: int = 3) -> 
 
     Logger.info(f"Successfully fetched sample records from table: {table_name}")
     return {"sample_records": result.get("matching_records", [])}
+
+async def sentinel_functions(intcid: str, task: str) -> dict:
+    """Retrieves KQL functions from Sentinel's Log Analytics workspace.
+
+    Args:
+        intcid: The customer integration ID.
+        task: The specific task or information needed.
+
+    Returns:
+        A dictionary containing the list of KQL functions found in the workspace.
+    """
+    Logger.info(f"tool:sentinel_functions: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+
+    try:
+        functions = sentinel_utils.get_sentinel_functions()
+        if not functions:
+            Logger.info("No KQL functions found in the workspace.")
+            return {"functions": []}
+        Logger.info(f"Found {len(functions)} KQL functions in the workspace.")
+        return {"functions": functions}
+
+    except Exception as e:
+        Logger.error(f"Error retrieving KQL functions: {e}")
+        return {"error": f"An error occurred while retrieving KQL functions: {e}"}

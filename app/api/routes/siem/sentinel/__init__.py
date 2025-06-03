@@ -26,6 +26,7 @@ from app.services.siem.sentinel.tools import (
     sentinel_generate_kql_query_template,  # Added new import
     # test_sentinel_generate_kql_query,  # Added new import
     test_sentinel_choose_table,  # Added new import
+    sentinel_functions
 )
 
 
@@ -82,6 +83,9 @@ class GenerateSentinelQueryRequest(BaseModel):
     triage_question: str
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
+
+class SentinelFunctionsRequest(BaseModel):
+    task: str = Field(..., description="The task description for the request.")
 
 
 # --- New Request Models ---
@@ -868,4 +872,38 @@ async def test_choose_table_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to test Sentinel table selection: {str(e)}"},
+        )
+
+
+@router.post("/sentinel_functions/{intcid}")
+async def sentinel_functions_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: SentinelFunctionsRequest = Body(
+        ..., description="Request to get Sentinel functions"
+    ),
+):
+    """
+    Retrieves KQL functions available in Microsoft Sentinel.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task description.
+
+    Returns:
+        JSON object with the list of KQL functions or an error.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/sentinel_functions/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        result = await sentinel_functions(intcid, request_body.task)
+        return result
+    except Exception as e:
+        Logger.error(f"Error retrieving Sentinel functions: {str(e)}")
+        Logger.error(
+            f"Error retrieving Sentinel functions: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to retrieve Sentinel functions: {str(e)}"},
         )
