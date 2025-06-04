@@ -1291,3 +1291,105 @@ class SentinelUtils:
             Logger.info(f"An error occurred: {e}")
             return []
         return kql_functions
+
+    def get_top_matching_tables_using_tags(
+        self, intcid: str, tags: list[str]
+    ) -> dict:
+        """
+        Fetches the top matching Sentinel tables based on provided tags.
+
+        Args:
+            intcid: Integration/Customer ID (for logging).
+            tags: tags dictionary to match against table metadata.
+        Returns:
+            A dictionary containing a list of matching table names under the key 'matching_tables'.
+            Returns an empty list if no matches are found.
+            Returns an error dictionary on failure.
+            Example success: {"matching_tables": ["Table1", "Table2"]}
+            Example no match: {"matching_tables": []}
+            Example error: {"error": "Authentication failed."}
+        """
+        Logger.info(
+            f"get_top_matching_tables_using_tags for intcid: {intcid}, tags: {tags}"
+        )
+
+        try:
+            
+            tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
+                self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
+            )
+            tables_list = tables_list_doc.get("indices")
+            if not tables_list:
+                Logger.info(f"No tables found for intcid: {intcid} with tags: {tags}")
+                return {"matching_tables": []}
+            Logger.info(f"Fetched tables list for intcid: {intcid}: {tables_list}")
+
+            # --- Begin prioritization logic ---
+            tags = tags.get("tags")
+            user_log_source = tags.get("log_source")
+            user_device_types = set(tags.get("device_type", []))
+            user_event_cats = set(tags.get("security_event_category", []))
+
+            first_priority = []
+            second_priority = []
+            third_priority = []
+
+            for table in tables_list:
+                table_log_source = table.get("log_source")
+                # Fix: device_type can be a string or a list
+                device_type_val = table.get("device_type")
+                if isinstance(device_type_val, list):
+                    table_device_type = set(device_type_val)
+                elif device_type_val:
+                    table_device_type = {device_type_val}
+                else:
+                    table_device_type = set()
+                table_tags = set(table.get("tags", []))
+
+                # First priority: all tags match (log_source, any device_type, all event categories)
+                matches_log_source = (user_log_source == table_log_source)
+                matches_device_type = bool(user_device_types & table_device_type) if user_device_types else True
+                matches_event_cats = user_event_cats.issubset(table_tags) if user_event_cats else True
+                total_tag_matches = len(user_event_cats & table_tags)
+
+                if matches_log_source and matches_device_type and matches_event_cats:
+                    first_priority.append((table, total_tag_matches))
+                elif matches_log_source and matches_device_type:
+                    second_priority.append((table, total_tag_matches))
+                elif matches_log_source:
+                    third_priority.append((table, total_tag_matches))
+
+            # Sort each group by number of matching tags (desc), then row_count (desc)
+            def sort_key(item):
+                table, tag_matches = item
+                return (tag_matches, table.get("row_count", 0))
+
+            first_priority_sorted = [t[0] for t in sorted(first_priority, key=sort_key, reverse=True)]
+            second_priority_sorted = [t[0] for t in sorted(second_priority, key=sort_key, reverse=True)]
+            third_priority_sorted = [t[0] for t in sorted(third_priority, key=sort_key, reverse=True)]
+
+            # Combine results, remove duplicates by index name, and track priority
+            seen = set()
+            matching_tables = []
+            table_priority = {}  # Map index to priority name
+            for group, priority_name in zip(
+                [first_priority_sorted, second_priority_sorted, third_priority_sorted],
+                ["first", "second", "third"]
+            ):
+                for table in group:
+                    idx = table.get("index")
+                    if idx and idx not in seen:
+                        matching_tables.append(idx)
+                        seen.add(idx)
+                        table_priority[idx] = priority_name
+
+            # Log priorities along with matching tables
+            priority_log = [f"{idx} (priority: {table_priority[idx]})" for idx in matching_tables]
+            Logger.info(f"Top matching tables for intcid: {intcid}, tags: {tags}: {priority_log}")
+            return {"matching_tables": matching_tables}
+
+        except Exception as e:
+            Logger.error(
+                f"{intcid}: Error occurred while fetching matching tables using tags: {e}"
+            )
+            return {"error": f"Error occurred: {str(e)}"}

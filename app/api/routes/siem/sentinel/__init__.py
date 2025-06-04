@@ -155,6 +155,11 @@ class TestSentinelChooseTableRequest(BaseModel):
     alert_context: Dict = Field(..., description="The alert context dictionary")
 
 
+class GetTopMatchingTablesRequest(BaseModel):
+    tags: Dict
+    task: Optional[str] = None
+
+
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["sentinel"])
 
@@ -907,3 +912,36 @@ async def sentinel_functions_route(
             status_code=500,
             content={"error": f"Failed to retrieve Sentinel functions: {str(e)}"},
         )
+
+
+@router.post("/get_top_matching_tables/{intcid}")
+async def get_top_matching_tables_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GetTopMatchingTablesRequest = Body(..., description="Request to get top matching tables by tags"),
+):
+    """
+    Returns the top matching Sentinel tables for the given tags.
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing tags and task (optional)
+    Returns:
+        JSON object with the prioritized list of matching table names.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_top_matching_tables/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        tags = request_body.tags
+        if not tags:
+            return JSONResponse(status_code=400, content={"error": "Missing 'tags' in request body."})
+        from app.services.siem.sentinel.utils import SentinelUtils
+        sentinel_utils = SentinelUtils(intcid=intcid)
+        result = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
+        return result
+    except Exception as e:
+        Logger.error(f"Error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get top matching tables: {str(e)}"},
+        )
+

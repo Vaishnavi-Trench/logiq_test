@@ -22,223 +22,223 @@ from app.services.siem.sentinel.utils import (
 )
 
 
-# async def sentinel_choose_table(
-#     intcid: str,
-#     task: str,
-#     tid: str,
-#     question_id: str,
-#     step_id: str,
-#     triage_question: str,
-#     alert_context: any,
-# ) -> dict:
-#     """Selects the appropriate Sentinel table using AI based on triage context and alert.
+async def sentinel_choose_table_old(
+    intcid: str,
+    task: str,
+    tid: str,
+    question_id: str,
+    step_id: str,
+    triage_question: str,
+    alert_context: any,
+) -> dict:
+    """Selects the appropriate Sentinel table using AI based on triage context and alert.
 
-#     Fetches available tables with schemas, checks cache, uses AI for selection
-#     if needed, caches the result, and stores it in MongoDB.
+    Fetches available tables with schemas, checks cache, uses AI for selection
+    if needed, caches the result, and stores it in MongoDB.
 
-#     Args:
-#         intcid: The customer integration ID.
-#         tid: The triage ID.
-#         question_id: The specific question ID within the triage process.
-#         triage_question: The text of the triage question being addressed.
-#         alert: The relevant alert/event content (dict or JSON string).
+    Args:
+        intcid: The customer integration ID.
+        tid: The triage ID.
+        question_id: The specific question ID within the triage process.
+        triage_question: The text of the triage question being addressed.
+        alert: The relevant alert/event content (dict or JSON string).
 
-#     Returns:
-#         A dictionary containing the chosen 'table_name' and 'env'.
-#         Returns an error dictionary if table fetching or selection fails.
-#         Example success: {'table_name': 'SecurityEvent', 'env': 'Production'}
-#         Example error: {'error': 'No suitable Sentinel tables found.'}
-#     """
-#     Logger.info(
-#         f"tool:sentinel_choose_table: Starting for {intcid}, TID: {tid}, QID: {question_id}"
-#     )
+    Returns:
+        A dictionary containing the chosen 'table_name' and 'env'.
+        Returns an error dictionary if table fetching or selection fails.
+        Example success: {'table_name': 'SecurityEvent', 'env': 'Production'}
+        Example error: {'error': 'No suitable Sentinel tables found.'}
+    """
+    Logger.info(
+        f"tool:sentinel_choose_table: Starting for {intcid}, TID: {tid}, QID: {question_id}"
+    )
 
-#     sentinel_utils = SentinelUtils(intcid=intcid)
-#     model_name = PropX.get_property("module.llm.model")
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    model_name = PropX.get_property("module.llm.model")
 
-#     if not model_name:
-#         Logger.error("Model name not found in configuration.")
-#         return {"error": "Model name not found in configuration."}
+    if not model_name:
+        Logger.error("Model name not found in configuration.")
+        return {"error": "Model name not found in configuration."}
 
-#     if not sentinel_utils.authenticate():
-#         return {"error": "Authentication failed. Check configuration and credentials."}
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
 
-#     workspace_id = sentinel_utils.get_workspace_id()
-#     if not workspace_id:
-#         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
-#     alert_str = (
-#         json.dumps(alert_context)
-#         if isinstance(alert_context, dict)
-#         else str(alert_context)
-#     )
+    alert_str = (
+        json.dumps(alert_context)
+        if isinstance(alert_context, dict)
+        else str(alert_context)
+    )
 
-#     # --- Determine Environment ---
-#     env = None
-#     try:
-#         _template, _version = PromptManager.get_prompt_template(
-#             intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
-#         )
-#         env_prompt_template = PromptTemplate.from_template(_template)
-#         env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
-#         system_prompt = "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated"
-#         env_response = AIManager.run_prompt_with_structured_output(
-#             model_name,
-#             env_formatted_prompt,
-#             sentinel_models.Environment,
-#             system_prompt=system_prompt,
-#         )
+    # --- Determine Environment ---
+    env = None
+    try:
+        _template, _version = PromptManager.get_prompt_template(
+            intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
+        )
+        env_prompt_template = PromptTemplate.from_template(_template)
+        env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
+        system_prompt = "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated"
+        env_response = AIManager.run_prompt_with_structured_output(
+            model_name,
+            env_formatted_prompt,
+            sentinel_models.Environment,
+            system_prompt=system_prompt,
+        )
 
-#         if env_response is None:
-#             return {"error": "Failed to parse AI response for environment selection."}
+        if env_response is None:
+            return {"error": "Failed to parse AI response for environment selection."}
 
-#         Logger.debug(f"AI response for environment selection: {env_response}")
+        Logger.debug(f"AI response for environment selection: {env_response}")
 
-#         env_response = env_response.model_dump()
+        env_response = env_response.model_dump()
 
-#         PromptManager.save_prompt_history(
-#             intcid,
-#             "logiq",
-#             tid,
-#             "SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-#             _version,
-#             model_name,
-#             system_prompt,
-#             env_formatted_prompt,
-#             env_response,
-#             model_class=sentinel_models.Environment,
-#             qid=question_id,
-#             step_id=step_id,
-#             category="environment_selection",
-#         )
+        PromptManager.save_prompt_history(
+            intcid,
+            "logiq",
+            tid,
+            "SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
+            _version,
+            model_name,
+            system_prompt,
+            env_formatted_prompt,
+            env_response,
+            model_class=sentinel_models.Environment,
+            qid=question_id,
+            step_id=step_id,
+            category="environment_selection",
+        )
 
-#         env = env_response.get("env", "unknown").lower()
+        env = env_response.get("env", "unknown").lower()
 
-#         if not env:
-#             Logger.warn(f"Could not determine environment from AI response: {env}")
-#             return {"error": "Failed to determine environment."}
-#         Logger.info(f"Determined environment: {env}")
-#     except Exception as e:
-#         Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
-#         return {"error": f"Failed to determine environment: {e}"}
+        if not env:
+            Logger.warn(f"Could not determine environment from AI response: {env}")
+            return {"error": "Failed to determine environment."}
+        Logger.info(f"Determined environment: {env}")
+    except Exception as e:
+        Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
+        return {"error": f"Failed to determine environment: {e}"}
 
-#     # --- Get Available Tables ---
+    # --- Get Available Tables ---
 
-#     query = {"intcid": intcid, "vendor": "sentinel", "subtype": "index_list"}
+    query = {"intcid": intcid, "vendor": "sentinel", "subtype": "index_list"}
 
-#     table_metadata = MongoDBManager.get_record_by_multiple_fields(
-#         sentinel_utils.main_db, sentinel_utils.toolsmetadata_db, query
-#     )
-#     if table_metadata is not None:
-#         customer_tables_with_schema = table_metadata.get("indices")
-#     else:
-#         # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
-#         # if "error" in table_schema:
-#         #     Logger.error(
-#         #         f"Failed to get Sentinel tables for {intcid}: {table_schema['error']}"
-#         #     )
-#         #     return {
-#         #         "error": f"Failed to retrieve Sentinel tables: {table_schema['error']}"
-#         #     }
-#         # else:
-#         #     customer_tables_with_schema = table_schema.get("tables_with_schema")
-#         return {"error": "Failed to retrieve Sentinel tables. No metadata found."}
+    table_metadata = MongoDBManager.get_record_by_multiple_fields(
+        sentinel_utils.main_db, sentinel_utils.toolsmetadata_db, query
+    )
+    if table_metadata is not None:
+        customer_tables_with_schema = table_metadata.get("indices")
+    else:
+        # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
+        # if "error" in table_schema:
+        #     Logger.error(
+        #         f"Failed to get Sentinel tables for {intcid}: {table_schema['error']}"
+        #     )
+        #     return {
+        #         "error": f"Failed to retrieve Sentinel tables: {table_schema['error']}"
+        #     }
+        # else:
+        #     customer_tables_with_schema = table_schema.get("tables_with_schema")
+        return {"error": "Failed to retrieve Sentinel tables. No metadata found."}
 
-#     try:
-#         table_name = sentinel_utils.get_table_name_from_mongo(
-#             intcid, "sentinel", env, tid, question_id, step_id
-#         )
-#     except Exception as mongo_e:
-#         Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
+    try:
+        table_name = sentinel_utils.get_table_name_from_mongo(
+            intcid, "sentinel", env, tid, question_id, step_id
+        )
+    except Exception as mongo_e:
+        Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
 
-#     if not table_name:
-#         try:
-#             _template, _version = PromptManager.get_prompt_template(
-#                 intcid, "logiq", "SENTINEL_TABLE_SELECTION_PROMPT"
-#             )
-#             table_prompt_template = PromptTemplate.from_template(_template)
-#             formatted_tables_schema = json.dumps(customer_tables_with_schema, indent=2)
-#             table_formatted_prompt = table_prompt_template.invoke(
-#                 {
-#                     "requirement": triage_question,
-#                     "available_table_details": formatted_tables_schema,
-#                     "alert": alert_str,
-#                 }
-#             ).text
-#             Logger.debug(
-#                 f"Formatted prompt for Sentinel table selection: {table_formatted_prompt}"
-#             )
+    if not table_name:
+        try:
+            _template, _version = PromptManager.get_prompt_template(
+                intcid, "logiq", "SENTINEL_TABLE_SELECTION_PROMPT"
+            )
+            table_prompt_template = PromptTemplate.from_template(_template)
+            formatted_tables_schema = json.dumps(customer_tables_with_schema, indent=2)
+            table_formatted_prompt = table_prompt_template.invoke(
+                {
+                    "requirement": triage_question,
+                    "available_table_details": formatted_tables_schema,
+                    "alert": alert_str,
+                }
+            ).text
+            Logger.debug(
+                f"Formatted prompt for Sentinel table selection: {table_formatted_prompt}"
+            )
 
-#             system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response."
-#             response_str = AIManager.run_prompt_with_structured_output(
-#                 model_name,
-#                 table_formatted_prompt,
-#                 sentinel_models.TableName,
-#                 system_prompt=system_prompt,
-#             )
-#             Logger.debug(f"AI response for table selection: {response_str}")
+            system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response."
+            response_str = AIManager.run_prompt_with_structured_output(
+                model_name,
+                table_formatted_prompt,
+                sentinel_models.TableName,
+                system_prompt=system_prompt,
+            )
+            Logger.debug(f"AI response for table selection: {response_str}")
 
-#             response_data = response_str.model_dump()
+            response_data = response_str.model_dump()
 
-#             PromptManager.save_prompt_history(
-#                 intcid,
-#                 "logiq",
-#                 tid,
-#                 "SENTINEL_TABLE_SELECTION_PROMPT",
-#                 _version,
-#                 model_name,
-#                 system_prompt,
-#                 table_formatted_prompt,
-#                 response_data,
-#                 model_class=sentinel_models.TableName,
-#                 qid=question_id,
-#                 step_id=step_id,
-#                 category="table_selection",
-#             )
+            PromptManager.save_prompt_history(
+                intcid,
+                "logiq",
+                tid,
+                "SENTINEL_TABLE_SELECTION_PROMPT",
+                _version,
+                model_name,
+                system_prompt,
+                table_formatted_prompt,
+                response_data,
+                model_class=sentinel_models.TableName,
+                qid=question_id,
+                step_id=step_id,
+                category="table_selection",
+            )
 
-#             if response_data is None:
-#                 Logger.error("Failed to parse AI response during table selection.")
-#                 return {"error": "Failed to parse AI response during table selection."}
+            if response_data is None:
+                Logger.error("Failed to parse AI response during table selection.")
+                return {"error": "Failed to parse AI response during table selection."}
 
-#             table_name = response_data.get("table_name", None)
+            table_name = response_data.get("table_name", None)
 
-#             Logger.debug(
-#                 f"AI selected table name: {table_name}, available tables: {customer_tables_with_schema}"
-#             )
-#             if not table_name:
-#                 Logger.error(
-#                     f"AI selected an invalid or unavailable table: '{table_name}'. Response: {response_str}"
-#                 )
-#                 return {
-#                     "error": f"AI failed to select a valid table. Selection: '{table_name}'"
-#                 }
+            Logger.debug(
+                f"AI selected table name: {table_name}, available tables: {customer_tables_with_schema}"
+            )
+            if not table_name:
+                Logger.error(
+                    f"AI selected an invalid or unavailable table: '{table_name}'. Response: {response_str}"
+                )
+                return {
+                    "error": f"AI failed to select a valid table. Selection: '{table_name}'"
+                }
 
-#             try:
-#                 sentinel_utils.push_table_name_to_mongo(
-#                     intcid,
-#                     "sentinel",
-#                     env,
-#                     tid,
-#                     question_id,
-#                     step_id,
-#                     triage_question,
-#                     table_name,
-#                 )
-#             except Exception as mongo_e:
-#                 Logger.warn(
-#                     f"Failed to push AI-selected table name to MongoDB: {mongo_e}"
-#                 )
+            try:
+                sentinel_utils.push_table_name_to_mongo(
+                    intcid,
+                    "sentinel",
+                    env,
+                    tid,
+                    question_id,
+                    step_id,
+                    triage_question,
+                    table_name,
+                )
+            except Exception as mongo_e:
+                Logger.warn(
+                    f"Failed to push AI-selected table name to MongoDB: {mongo_e}"
+                )
 
-#             Logger.info(f"Sentinel table chosen by AI: {table_name}")
-#         except Exception as e:
-#             Logger.error(
-#                 f"Error during Sentinel table selection: {e}\n{traceback.format_exc()}"
-#             )
-#             return {
-#                 "error": f"An unexpected error occurred during table name selection: {e}"
-#             }
+            Logger.info(f"Sentinel table chosen by AI: {table_name}")
+        except Exception as e:
+            Logger.error(
+                f"Error during Sentinel table selection: {e}\n{traceback.format_exc()}"
+            )
+            return {
+                "error": f"An unexpected error occurred during table name selection: {e}"
+            }
 
-#     return {"table_name": table_name, "env": env}
+    return {"table_name": table_name, "env": env}
 
 
 async def sentinel_choose_table(
@@ -1266,169 +1266,169 @@ async def _generate_sentinel_kql_from_template(
         return {"error": "Final KQL query generation failed."}
 
 
-# async def sentinel_generate_kql_query(
-#     intcid: str,
-#     task: str,
-#     table_name: str,
-#     tid: str,
-#     question_id: str,
-#     step_id: str,
-#     triage_question: str,
-#     alert_context: any,  # Accept dict or string
-#     env: str,
-# ) -> dict:
-#     """Generates a Sentinel KQL query for a specific task and context using AI.
+async def sentinel_generate_kql_query_old(
+    intcid: str,
+    task: str,
+    table_name: str,
+    tid: str,
+    question_id: str,
+    step_id: str,
+    triage_question: str,
+    alert_context: any,  # Accept dict or string
+    env: str,
+) -> dict:
+    """Generates a Sentinel KQL query for a specific task and context using AI.
 
-#     Handles template generation, placeholder replacement (time, fields),
-#     validation, and retries.
+    Handles template generation, placeholder replacement (time, fields),
+    validation, and retries.
 
-#     Args:
-#         intcid: The customer integration ID.
-#         task: The specific task or information needed (requirement).
-#         table_name: The name of the target Sentinel table.
-#         tid: Triage ID for caching/persistence.
-#         question_id: The specific question ID within the triage process.
-#         triage_question: The text of the triage question being addressed.
-#         alert: The relevant alert/event content (dict or JSON string).
+    Args:
+        intcid: The customer integration ID.
+        task: The specific task or information needed (requirement).
+        table_name: The name of the target Sentinel table.
+        tid: Triage ID for caching/persistence.
+        question_id: The specific question ID within the triage process.
+        triage_question: The text of the triage question being addressed.
+        alert: The relevant alert/event content (dict or JSON string).
 
-#     Returns:
-#         A dictionary containing the generated KQL query under the key 'query'.
-#         Returns an error dictionary if generation fails after retries.
-#         Example success: {'query': 'SecurityEvent | where ...'}
-#         Example error: {'error': 'Failed to generate valid KQL...'}
-#     """
-#     Logger.info(
-#         f"tool:sentinel_generate_kql_query: Starting for {intcid}, Table: {table_name}, Task: {task}"
-#     )
+    Returns:
+        A dictionary containing the generated KQL query under the key 'query'.
+        Returns an error dictionary if generation fails after retries.
+        Example success: {'query': 'SecurityEvent | where ...'}
+        Example error: {'error': 'Failed to generate valid KQL...'}
+    """
+    Logger.info(
+        f"tool:sentinel_generate_kql_query: Starting for {intcid}, Table: {table_name}, Task: {task}"
+    )
 
-#     sentinel_utils = SentinelUtils(intcid=intcid)
-#     if not sentinel_utils.authenticate():
-#         return {"error": "Authentication failed. Check configuration and credentials."}
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
 
-#     workspace_id = sentinel_utils.get_workspace_id()
-#     if not workspace_id:
-#         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
-#     schema = sentinel_utils.get_table_metadata(intcid, table_name)
+    schema = sentinel_utils.get_table_metadata(intcid, table_name)
 
-#     if not schema or len(schema) < 0:
-#         Logger.error(
-#             f"Could not retrieve schema for table '{table_name}'. Cannot generate query."
-#         )
-#         return {"error": f"Failed to get schema for table {table_name}."}
+    if not schema or len(schema) < 0:
+        Logger.error(
+            f"Could not retrieve schema for table '{table_name}'. Cannot generate query."
+        )
+        return {"error": f"Failed to get schema for table {table_name}."}
 
-#     query_template = None
-#     final_kql_query = None
-#     is_valid = False
-#     alert_str = (
-#         json.dumps(alert_context)
-#         if isinstance(alert_context, dict)
-#         else str(alert_context)
-#     )
-#     msg = ""  # Initialize msg
-#     env = env.lower()
-#     for attempt in range(MAX_KQL_GENERATION_ATTEMPTS):
-#         Logger.info(
-#             f"KQL Generation Attempt {attempt + 1}/{MAX_KQL_GENERATION_ATTEMPTS} for task: {task}"
-#         )
-#         try:
-#             if query_template is None:
-#                 query_template = await _generate_sentinel_kql_template(
-#                     intcid=intcid,
-#                     tid=tid,
-#                     question_id=question_id,
-#                     step_id=step_id,
-#                     requirement=task,
-#                     alert=alert_str,
-#                     table_name=table_name,
-#                     table_schema=schema,
-#                     env=env,
-#                 )
-#                 if "error" in query_template:
-#                     Logger.warn(
-#                         f"Attempt {attempt + 1}: Failed to generate KQL template."
-#                     )
-#                     continue
+    query_template = None
+    final_kql_query = None
+    is_valid = False
+    alert_str = (
+        json.dumps(alert_context)
+        if isinstance(alert_context, dict)
+        else str(alert_context)
+    )
+    msg = ""  # Initialize msg
+    env = env.lower()
+    for attempt in range(MAX_KQL_GENERATION_ATTEMPTS):
+        Logger.info(
+            f"KQL Generation Attempt {attempt + 1}/{MAX_KQL_GENERATION_ATTEMPTS} for task: {task}"
+        )
+        try:
+            if query_template is None:
+                query_template = await _generate_sentinel_kql_template(
+                    intcid=intcid,
+                    tid=tid,
+                    question_id=question_id,
+                    step_id=step_id,
+                    requirement=task,
+                    alert=alert_str,
+                    table_name=table_name,
+                    table_schema=schema,
+                    env=env,
+                )
+                if "error" in query_template:
+                    Logger.warn(
+                        f"Attempt {attempt + 1}: Failed to generate KQL template."
+                    )
+                    continue
 
-#             kql_template_time_replaced = await _replace_kql_timerange(
-#                 intcid=intcid,
-#                 tid=tid,
-#                 question_id=question_id,
-#                 step_id=step_id,
-#                 requirement=task,
-#                 kql_template=query_template,
-#                 alert=alert_str,
-#             )
-#             if "error" in kql_template_time_replaced:
-#                 Logger.warn(f"Attempt {attempt + 1}: Failed to replace time range.")
-#                 query_template = None  # Force regeneration
-#                 continue
+            kql_template_time_replaced = await _replace_kql_timerange(
+                intcid=intcid,
+                tid=tid,
+                question_id=question_id,
+                step_id=step_id,
+                requirement=task,
+                kql_template=query_template,
+                alert=alert_str,
+            )
+            if "error" in kql_template_time_replaced:
+                Logger.warn(f"Attempt {attempt + 1}: Failed to replace time range.")
+                query_template = None  # Force regeneration
+                continue
 
-#             final_kql_query = await _generate_sentinel_kql_from_template(
-#                 intcid=intcid,
-#                 tid=tid,
-#                 question_id=question_id,
-#                 step_id=step_id,
-#                 requirement=task,
-#                 kql_template_time_replaced=kql_template_time_replaced,
-#                 alert=alert_str,
-#                 alert_context=alert_context,
-#             )
-#             if "error" in final_kql_query:
-#                 Logger.warn(
-#                     f"Attempt {attempt + 1}: Failed to generate final KQL query."
-#                 )
-#                 query_template = None  # Force regeneration
-#                 continue
+            final_kql_query = await _generate_sentinel_kql_from_template(
+                intcid=intcid,
+                tid=tid,
+                question_id=question_id,
+                step_id=step_id,
+                requirement=task,
+                kql_template_time_replaced=kql_template_time_replaced,
+                alert=alert_str,
+                alert_context=alert_context,
+            )
+            if "error" in final_kql_query:
+                Logger.warn(
+                    f"Attempt {attempt + 1}: Failed to generate final KQL query."
+                )
+                query_template = None  # Force regeneration
+                continue
 
-#             is_valid, msg = sentinel_utils.validate_sentinel_kql(
-#                 final_kql_query, intcid
-#             )
-#             if not is_valid:
-#                 Logger.warn(
-#                     f"Attempt {attempt + 1}: Generated KQL failed validation: {final_kql_query} - Reason: {msg}"
-#                 )
-#                 query_template = None  # Force regeneration
-#             else:
-#                 Logger.info(f"Attempt {attempt + 1}: Generated KQL passed validation.")
-#                 break  # Exit loop successfully
+            is_valid, msg = sentinel_utils.validate_sentinel_kql(
+                final_kql_query, intcid
+            )
+            if not is_valid:
+                Logger.warn(
+                    f"Attempt {attempt + 1}: Generated KQL failed validation: {final_kql_query} - Reason: {msg}"
+                )
+                query_template = None  # Force regeneration
+            else:
+                Logger.info(f"Attempt {attempt + 1}: Generated KQL passed validation.")
+                break  # Exit loop successfully
 
-#         except Exception as e:
-#             Logger.error(
-#                 f"Attempt {attempt + 1}: Error during KQL generation/validation: {e}\n{traceback.format_exc()}"
-#             )
-#             query_template = None  # Force regeneration
+        except Exception as e:
+            Logger.error(
+                f"Attempt {attempt + 1}: Error during KQL generation/validation: {e}\n{traceback.format_exc()}"
+            )
+            query_template = None  # Force regeneration
 
-#     if not is_valid or final_kql_query is None:
-#         Logger.error(
-#             f"Failed to generate a valid KQL query after {MAX_KQL_GENERATION_ATTEMPTS} attempts for task: {task}"
-#         )
-#         return {
-#             "error": f"Failed to generate valid KQL after {MAX_KQL_GENERATION_ATTEMPTS} attempts. Last error: {msg}"
-#         }
+    if not is_valid or final_kql_query is None:
+        Logger.error(
+            f"Failed to generate a valid KQL query after {MAX_KQL_GENERATION_ATTEMPTS} attempts for task: {task}"
+        )
+        return {
+            "error": f"Failed to generate valid KQL after {MAX_KQL_GENERATION_ATTEMPTS} attempts. Last error: {msg}"
+        }
 
-#     # --- Persistence Hook ---
-#     if query_template and final_kql_query and is_valid:
-#         try:
-#             sentinel_utils.push_kql_template_data_to_mongo(
-#                 intcid=intcid,
-#                 siem_type="sentinel",
-#                 env=env,
-#                 tid=tid,
-#                 question_id=question_id,
-#                 step_id=step_id,
-#                 triage_question=triage_question,
-#                 requirement=task,
-#                 table_name=table_name,
-#                 query_template=query_template,
-#                 final_query=final_kql_query,
-#             )
-#         except Exception as persist_e:
-#             Logger.warn(f"Failed to persist KQL template/query: {persist_e}")
+    # --- Persistence Hook ---
+    if query_template and final_kql_query and is_valid:
+        try:
+            sentinel_utils.push_kql_template_data_to_mongo(
+                intcid=intcid,
+                siem_type="sentinel",
+                env=env,
+                tid=tid,
+                question_id=question_id,
+                step_id=step_id,
+                triage_question=triage_question,
+                requirement=task,
+                table_name=table_name,
+                query_template=query_template,
+                final_query=final_kql_query,
+            )
+        except Exception as persist_e:
+            Logger.warn(f"Failed to persist KQL template/query: {persist_e}")
 
-#     Logger.info(f"Successfully generated and validated KQL query for task: {task}")
-#     Logger.debug(f"Final KQL query: {final_kql_query}")
-#     return {"query": final_kql_query}
+    Logger.info(f"Successfully generated and validated KQL query for task: {task}")
+    Logger.debug(f"Final KQL query: {final_kql_query}")
+    return {"query": final_kql_query}
 
 async def sentinel_generate_kql_query(
     intcid: str,
@@ -2285,3 +2285,38 @@ async def sentinel_functions(intcid: str, task: str) -> dict:
     except Exception as e:
         Logger.error(f"Error retrieving KQL functions: {e}")
         return {"error": f"An error occurred while retrieving KQL functions: {e}"}
+    
+async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
+    """Retrieves the top matching tables based on provided tags.
+
+    Args:
+        intcid: The customer integration ID.
+        tags: A comma-separated string of tags to match against table metadata.
+        task: The specific task or information needed.
+
+    Returns:
+        A dictionary containing the list of matching tables.
+    """
+    Logger.info(f"tool:get_top_matching_tables: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    try:
+        matching_tables = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
+        if "error" in matching_tables:
+            Logger.error(f"Error retrieving matching tables: {matching_tables['error']}")
+            Logger.info("No matching tables found for the provided tags.")
+            return {"tables": []}
+        matching_tables = matching_tables.get("matching_tables")
+        Logger.info(f"Found {len(matching_tables)} matching tables.")
+        return {"tables": matching_tables}
+
+    except Exception as e:
+        Logger.error(f"Error retrieving matching tables: {e}")
+        return {"error": f"An error occurred while retrieving matching tables: {e}"}
+    
+    
+    
+    
