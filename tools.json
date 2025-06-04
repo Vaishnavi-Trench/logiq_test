@@ -85,7 +85,7 @@
       }
     },
     {
-      "name": "intelligence/abuseipdb/get_ip_reputation_report",
+      "name": "intelligence/abuse/get_ip_reputation_report",
       "description": "Checks a Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. Send only public IP addresses by checking it using the tool get_ip_type.",
       "input": [
         {
