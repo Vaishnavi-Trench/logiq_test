@@ -2304,7 +2304,8 @@ async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
         return {"error": "Authentication failed. Check configuration and credentials."}
 
     try:
-        matching_tables = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
+        # matching_tables = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
+        matching_tables = sentinel_utils.get_relevant_sentinel_tables(intcid, tags)
         if "error" in matching_tables:
             Logger.error(f"Error retrieving matching tables: {matching_tables['error']}")
             Logger.info("No matching tables found for the provided tags.")

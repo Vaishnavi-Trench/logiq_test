@@ -26,7 +26,8 @@ from app.services.siem.sentinel.tools import (
     sentinel_generate_kql_query_template,  # Added new import
     # test_sentinel_generate_kql_query,  # Added new import
     test_sentinel_choose_table,  # Added new import
-    sentinel_functions
+    sentinel_functions,
+    get_top_matching_tables
 )
 
 
@@ -756,70 +757,6 @@ async def generate_query_template_route(
         )
 
 
-@router.post("/test_generate_query/{intcid}")
-async def test_generate_query_route(
-    request: Request,
-    intcid: str = Path(..., description="Customer ID"),
-    task: str = Path(..., description="Task"),
-    tid: str = Path(..., description="Triage ID"),
-    question_id: str = Path(..., description="Question ID"),
-    step_id: str = Path(..., description="Step ID"),
-    triage_question: str = Path(..., description="Triage Question"),
-    alert_context: Dict = Path(..., description="Alert Context"),
-    query_templates: List[str] = Path(..., description="Query Templates"),
-    request_body: TestSentinelPrepareQueryRequest = Body(
-        ...,
-        description="Request to test generate Sentinel KQL queries",
-    ),
-):
-    """
-    Test generate Sentinel KQL queries based on query templates and alert context.
-
-    Args:
-        intcid: Customer ID
-        request_body: Request body containing task, alert context, and query templates.
-
-    Returns:
-        JSON object with generated test Sentinel KQL queries.
-    """
-    Logger.info(
-        f"api: /siem/sentinel/test_generate_query/{intcid}: Task: {request_body.task}"
-    )
-    try:
-        raw_body = await request.body()
-        Logger.info(
-            f"REQUEST PAYLOAD for test_generate_query/{intcid}: {raw_body.decode()}"
-        )
-    except Exception as e:
-        Logger.error(f"Failed to log request payload: {str(e)}")
-
-    try:
-        Logger.info(
-            f"VALIDATED REQUEST for test_generate_query/{intcid}: {request_body.json()}"
-        )
-    except Exception as e:
-        Logger.error(f"Failed to log validated request: {str(e)}")
-
-    try:
-        result = await sentinel_prepare_kql_query(
-            intcid,
-            request_body.task,
-            request_body.alert_context,
-            request_body.query_templates,
-        )
-        return result
-
-    except Exception as e:
-        Logger.error(f"Error testing Sentinel KQL query generation: {str(e)}")
-        Logger.error(
-            f"Error testing Sentinel KQL query generation: {str(e)}\n{traceback.format_exc()}"
-        )
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": f"Failed to test Sentinel KQL query generation: {str(e)}"
-            },
-        )
 
 
 @router.post("/test_choose_table/{intcid}")
@@ -932,16 +869,27 @@ async def get_top_matching_tables_route(
     )
     try:
         tags = request_body.tags
+        task = request_body.task
         if not tags:
             return JSONResponse(status_code=400, content={"error": "Missing 'tags' in request body."})
-        from app.services.siem.sentinel.utils import SentinelUtils
-        sentinel_utils = SentinelUtils(intcid=intcid)
-        result = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
+        result =  await get_top_matching_tables(intcid, tags, task)
         return result
-    except Exception as e:
-        Logger.error(f"Error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
+    except ValidationError as ve:
+        Logger.error(f"Validation error in get_top_matching_tables: {str(ve)}\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=422,
+            content={"error": f"Validation error: {str(ve)}"},
+        )
+    except RuntimeError as e:
+        Logger.error(f"Runtime error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to get top matching tables: {str(e)}"},
+        )
+    except Exception as e:
+        Logger.error(f"Unexpected error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "An unexpected error occurred while getting top matching tables."},
         )
 

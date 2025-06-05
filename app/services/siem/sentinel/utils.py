@@ -9,7 +9,7 @@ import json
 import traceback
 import re  # Import regex for checking limit patterns
 from datetime import datetime, timezone
-
+import collections
 from pltfrm import PropX, Logger2 as Logger, MongoDBManager
 
 # Removed global property assignments
@@ -1292,6 +1292,7 @@ class SentinelUtils:
             return []
         return kql_functions
 
+    #Not in use
     def get_top_matching_tables_using_tags(
         self, intcid: str, tags: list[str]
     ) -> dict:
@@ -1315,10 +1316,15 @@ class SentinelUtils:
 
         try:
             
-            tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
-                self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
-            )
-            tables_list = tables_list_doc.get("indices")
+            # Defensive: handle MongoDBManager singleton error gracefully
+            try:
+                tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
+                    self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
+                )
+            except Exception as e:
+                Logger.error(f"Error retrieving matching tables: {e}")
+                return {"matching_tables": []}
+            tables_list = tables_list_doc.get("indices", []) if tables_list_doc else []
             if not tables_list:
                 Logger.info(f"No tables found for intcid: {intcid} with tags: {tags}")
                 return {"matching_tables": []}
@@ -1393,3 +1399,142 @@ class SentinelUtils:
                 f"{intcid}: Error occurred while fetching matching tables using tags: {e}"
             )
             return {"error": f"Error occurred: {str(e)}"}
+
+    def get_relevant_sentinel_tables(self, intcid: str, alert_tags: dict, min_score_threshold: int = 200) -> dict:
+        """
+        Calculates relevance scores for Sentinel tables based on alert tags using a tiered scoring system
+        and returns a sorted dictionary of relevant tables, implementing the new priority.
+
+        Args:
+            intcid (str): Integration/Customer ID.
+            alert_tags (dict): A dictionary containing 'log_source', 'device_type' (list),
+                               and 'security_event_category' (list) from the LLM.
+            min_score_threshold (int): Minimum score a table needs to be included in the results.
+
+        Returns:
+            dict: A dictionary of relevant tables sorted by score (descending),
+                  e.g., {"TableName1": score1, "TableName2": score2}.
+                  The returned dict contains a "matching_tables" key with a list of table names.
+        """
+        table_scores = collections.defaultdict(int)
+
+        # Tiered Scoring Weights - these values define the new strict hierarchy
+        TIER_SCORES = {
+            "all_three_perfect": 500,        # Highest priority (Log Source + Device Type + Security Event Category)
+            "log_source_only_base": 400,     # Second priority (Log Source matched)
+            "device_security_only": 300,     # Third priority (Device Type + Security Event Category, without Log Source match)
+
+            # Micro-bonuses for within Log Source only tier, to differentiate
+            "log_source_plus_device_type_bonus": 5, # L + D (not S)
+            "log_source_plus_security_category_bonus": 10, # L + S (not D)
+
+            # Fallback scores for single matches when no higher tier applies
+            "device_type_single_fallback": 20,
+            "security_category_single_fallback": 30,
+        }
+
+        Logger.info(f"Alert tags for relevance scoring: {alert_tags}")
+
+        # Defensive: Handle nested alert_tags
+        parsed_alert_tags = {}
+        if isinstance(alert_tags, dict):
+            if 'tags' in alert_tags and isinstance(alert_tags['tags'], dict):
+                if 'tags' in alert_tags['tags'] and isinstance(alert_tags['tags']['tags'], dict):
+                    parsed_alert_tags = alert_tags['tags']['tags']
+                else:
+                    parsed_alert_tags = alert_tags['tags']
+            else:
+                parsed_alert_tags = alert_tags
+        else:
+            Logger.error(f"Expected alert_tags to be dict, got {type(alert_tags)}: {alert_tags}")
+            return {"matching_tables": []}
+
+        alert_log_source = parsed_alert_tags.get("log_source", "").lower()
+        Logger.debug(f"Alert log source (normalized): {alert_log_source}")
+        alert_device_types = [dt.lower() for dt in (parsed_alert_tags.get("device_type", []) if isinstance(parsed_alert_tags.get("device_type", []), list) else [parsed_alert_tags.get("device_type", "")]) if isinstance(dt, str)]
+        Logger.debug(f"Alert device types (normalized): {alert_device_types}")
+        alert_security_event_categories = [sec.lower() for sec in (parsed_alert_tags.get("security_event_category", []) if isinstance(parsed_alert_tags.get("security_event_category", []), list) else [parsed_alert_tags.get("security_event_category", "")]) if isinstance(sec, str)]
+        Logger.debug(f"Alert security event categories (normalized): {alert_security_event_categories}")
+
+
+        # Fetch table profiles from MongoDB
+        try:
+            tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
+                self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
+            )
+        except Exception as e:
+            Logger.error(f"Error retrieving table profiles from MongoDB: {e}")
+            return {"matching_tables": []}
+
+        tables_list = tables_list_doc.get("indices", []) if tables_list_doc else []
+
+        if not tables_list:
+            Logger.warning(f"No Sentinel table profiles found for intcid: {intcid}. Check MongoDB configuration.")
+            return {"matching_tables": []}
+
+        for table in tables_list:
+            table_name = table.get("index")
+            if not table_name:
+                continue # Skip if table name is missing
+
+            profile_log_source = table.get("log_source", "")
+            if not profile_log_source:
+                continue  # Skip tables with empty log_source
+            # No .lower() needed, values are already normalized
+            Logger.debug(f"Processing table: {table_name}, profile log_source: {profile_log_source}")
+
+            device_type_val = table.get("device_type", [])
+            if not device_type_val:
+                continue  # Skip tables with empty device_type
+            profile_device_types = device_type_val if isinstance(device_type_val, list) else [device_type_val]
+            Logger.debug(f"Device types for table {table_name}: {profile_device_types}")
+
+            security_tags_val = table.get("tags", [])
+            if not security_tags_val:
+                continue  # Skip tables with empty security_event_category/tags
+            profile_security_event_categories = security_tags_val if isinstance(security_tags_val, list) else [security_tags_val]
+            Logger.debug(f"Security event categories for table {table_name}: {profile_security_event_categories}")
+
+            current_score = 0
+
+            # Determine match conditions using normalized values
+            log_source_matched = (alert_log_source and alert_log_source == profile_log_source)
+            device_type_overlap = bool(set(alert_device_types) & set(profile_device_types))
+            security_category_overlap = bool(set(alert_security_event_categories) & set(profile_security_event_categories))
+
+            # --- Apply new tiered scoring based on the strict priority ---
+
+            # Priority 1: All Three (Log Source + Device Type + Security Event Category)
+            if log_source_matched and device_type_overlap and security_category_overlap:
+                current_score = TIER_SCORES["all_three_perfect"]
+            # Priority 2: Log Source Only (and any additional matches that don't make it Tier 1)
+            elif log_source_matched:
+                current_score = TIER_SCORES["log_source_only_base"]
+                # Add micro-bonuses if device type or security category also overlap
+                if device_type_overlap:
+                    current_score += TIER_SCORES["log_source_plus_device_type_bonus"]
+                if security_category_overlap:
+                    current_score += TIER_SCORES["log_source_plus_security_category_bonus"]
+            # Priority 3: Device Type AND Security Event Type (without a Log Source match)
+            elif device_type_overlap and security_category_overlap:
+                current_score = TIER_SCORES["device_security_only"]
+            # Fallback: Single matches (only Device Type OR Security Event Type, without Log Source)
+            else:
+                if device_type_overlap:
+                    current_score += TIER_SCORES["device_type_single_fallback"]
+                if security_category_overlap:
+                    current_score += TIER_SCORES["security_category_single_fallback"]
+
+            table_scores[table_name] = current_score
+            Logger.debug(f"  --> Table '{table_name}' final score: {current_score}")
+
+
+        # Filter and sort
+        relevant_tables = {
+            table: score for table, score in table_scores.items()
+            if score >= min_score_threshold
+        }
+        sorted_relevant_tables = dict(sorted(relevant_tables.items(), key=lambda item: item[1], reverse=True))
+        Logger.info(f"Top relevant tables for intcid: {intcid}, tags: {parsed_alert_tags}: {sorted_relevant_tables}")
+
+        return {"matching_tables": list(sorted_relevant_tables.keys())}
