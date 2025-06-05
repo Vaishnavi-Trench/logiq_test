@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "general/iputils/get_ip_address_type",
-      "description": "This returns features (IPv4/v6, public/private etc.) of the given ip address. Below parameters are mandatory inputs to this tool without which tool calls is not useful.",
+      "description": "Analyzes the provided IP address and returns detailed information about its type, including whether it is IPv4 or IPv6, and if it is public, private, loopback, reserved, link-local, or multicast. This tool is essential for understanding the nature and classification of any given IP address.",
       "input": [
         {
           "name": "ip_address",
@@ -19,7 +19,7 @@
     },
     {
       "name": "general/iputils/is_whitelist_ip",
-      "description": "This tool checks the given ip address against organization's whitelist. Below parameters are mandatory inputs to this tool.",
+      "description": "Checks if the specified IP address is present in the organization's whitelist. Use this tool to verify if an IP address is trusted or allowed by organizational policy, which is crucial for access control and security operations.",
       "input": [
         {
           "name": "ip_address",
@@ -34,7 +34,7 @@
     },
     {
       "name": "general/iputils/is_blocklist_ip",
-      "description": "This tool checks the given ip address against organization's blocklist. Below parameters are mandatory inputs to this tool.",
+      "description": "Determines if the given IP address is listed in the organization's blocklist. This tool helps identify potentially malicious or unauthorized IP addresses, supporting threat detection and prevention efforts.",
       "input": [
         {
           "name": "ip_address",
@@ -49,7 +49,7 @@
     },
     {
       "name": "intelligence/ipinfo/get_ip_geolocation",
-      "description": "Retrieves geolocation information for given public IP address including country, city, and organization. Below parameters are mandatory inputs to this tool. **Important**: send only public ip addresses by checking it using tool get_ip_type",
+      "description": "Retrieves comprehensive geolocation details for a public IP address, including country, city, organization, coordinates, and timezone. Use this tool to enrich alerts or investigations with location context, but ensure the IP is public before querying.",
       "input": [
         {
           "name": "ip_address",
@@ -67,7 +67,7 @@
     },
     {
       "name": "intelligence/virustotal/get_ip_reputation_report",
-      "description": "Checks an Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. send only public ip addresses by checking it using tool get_ip_type",
+      "description": "Checks the reputation of a public IP address using threat intelligence sources, such as VirusTotal, to determine if it is associated with malicious activity. Provides a reputation score and details on the number of engines reporting the IP as malicious. Only public IPs should be checked.",
       "input": [
         {
           "name": "ip_address",
@@ -86,7 +86,7 @@
     },
     {
       "name": "intelligence/abuse/get_ip_reputation_report",
-      "description": "Checks a Public IP address against threat intelligence sources to determine if it's associated with malicious activity. Below parameters are mandatory inputs to this tool. Send only public IP addresses by checking it using the tool get_ip_type.",
+      "description": "Queries threat intelligence databases to assess the abuse confidence score and reputation of a public IP address. Returns detailed information including whitelisting status, ISP, domain, Tor usage, and reporting statistics. Only public IPs should be checked.",
       "input": [
         {
           "name": "ip_address",
@@ -113,7 +113,7 @@
     },
     {
       "name": "intelligence/dns/dns_lookup",
-      "description": "Performs DNS resolution for a hostname or domain name. Below parameters are mandatory inputs to this tool.",
+      "description": "Performs DNS resolution for a specified domain or hostname, supporting various record types (A, AAAA, MX, TXT, etc.). Use this tool to obtain DNS records for investigation, troubleshooting, or enrichment purposes.",
       "input": [
         {
           "name": "domain",
@@ -131,7 +131,7 @@
     },
     {
       "name": "intelligence/whois/whois_lookup",
-      "description": "Retrieves domain registration information including owner, dates, and nameservers. Below parameters are mandatory inputs to this tool.",
+      "description": "Retrieves WHOIS registration information for a domain, including ownership, registration dates, and nameservers. This tool is useful for attribution, domain investigation, and compliance checks.",
       "input": [
         {
           "name": "domain",
@@ -143,7 +143,7 @@
     },
     {
       "name": "cloud/aws/s3/aws_s3_list_files",
-      "description": "Lists all files in a given AWS S3 bucket. Below parameters are mandatory inputs to this tool.",
+      "description": "Lists all files present in a specified AWS S3 bucket. Use this tool to inventory, audit, or manage files stored in Amazon S3 for cloud operations and security reviews.",
       "input": [
         {
           "name": "task",
@@ -162,7 +162,7 @@
     },
     {
       "name": "cloud/gcp/gcs/gcs_list_files",
-      "description": "Lists all files in a given Google Cloud Storage bucket. Below parameters are mandatory inputs to this tool.",
+      "description": "Lists all files in a specified Google Cloud Storage (GCS) bucket. This tool is essential for managing, auditing, or reviewing files stored in GCS as part of cloud operations.",
       "input": [
         {
           "name": "task",
@@ -181,7 +181,7 @@
     },
     {
       "name": "cloud/gcp/audit_logs/fetch_audit_logs",
-      "description": "Fetches logs from GCP Audit Logs using the generated query for a given project ID. Below parameters are mandatory inputs to this tool.",
+      "description": "Fetches audit logs from Google Cloud Platform (GCP) for a given project ID and query. Use this tool to investigate activities, monitor compliance, or analyze security events in GCP environments.",
       "input": [
         {
           "name": "task",
@@ -205,7 +205,7 @@
     },
     {
       "name": "cloud/gcp/iam/gcp_iam_role_lookup",
-      "description": "Checks the IAM roles of a member for a given resource. Below parameters are mandatory inputs to this tool.",
+      "description": "Checks and retrieves the IAM roles assigned to a specific user or service account for a given GCP resource. This tool is vital for access reviews, privilege audits, and compliance checks in GCP.",
       "input": [
         {
           "name": "task",
@@ -229,7 +229,7 @@
     },
     {
       "name": "cloud/gcp/logging/generate_gcp_logging_query",
-      "description": "Generates and executes a query to fetch logs from GCP Audit Logs for a given project ID. Below parameters are mandatory inputs to this tool.",
+      "description": "Generates and executes a query to fetch logs from GCP Audit Logs for a specified project. Use this tool to automate log retrieval for investigations, monitoring, or compliance purposes.",
       "input": [
         {
           "name": "task",
@@ -253,7 +253,7 @@
     },
     {
       "name": "siem/splunk/splunk_choose_index",
-      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Fetches the correct Splunk index for the requirement.",
+      "description": "Selects the most appropriate Splunk index for a given triage requirement based on the provided task, requirement, and alert. This tool ensures that subsequent queries target the correct data source in Splunk.",
       "input": [
         {
           "name": "task",
@@ -277,7 +277,7 @@
     },
     {
       "name": "siem/splunk/generate_splunk_query",
-      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Generates a Splunk query for a given the input parameters below. Call run_query tool to run the generated query.",
+      "description": "Generates a Splunk query tailored to the specified requirement, index, sourcetype, and alert. Use this tool to create precise queries for data analysis and incident triage in Splunk environments.",
       "input": [
         {
           "name": "task",
@@ -311,7 +311,7 @@
     },
     {
       "name": "siem/splunk/run_splunk_query",
-      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Runs a Splunk query in the customer's Splunk instance and returns the result.",
+      "description": "Executes a provided Splunk query in the customer's Splunk instance and returns the results. This tool is used to retrieve data for analysis, investigation, or reporting.",
       "input": [
         {
           "name": "task",
@@ -330,7 +330,7 @@
     },
     {
       "name": "siem/wazuh/get_alert_context",
-      "description": "Important information extraction tool. It extracts and returns important parameters of the alert like username, source ip address, target ip address, domain etc. Below parameters are mandatory inputs to this tool.",
+      "description": "Extracts and returns key parameters from an alert, such as username, source IP address, target IP address, and domain. This tool is essential for enriching triage workflows with relevant alert context.",
       "input": [
         {
           "name": "task",
@@ -349,7 +349,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_get_all_index_names",
-      "description": "Tool to setup integration data. Call this tool to get all wazuh index names present in the Wazuh opensearch instance. Index names with dates will be converted to wildcard suffix. Below parameters are mandatory inputs to this tool.",
+      "description": "Retrieves all available Wazuh index names from the Wazuh OpenSearch instance, converting date-suffixed indices to wildcard patterns. Use this tool to discover data sources for further querying.",
       "input": [
         {
           "name": "task",
@@ -363,7 +363,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_get_available_fields_for_index",
-      "description": "Tool to setup integration data. Call this tool to get available field names in given index_name of Wazuh opensearch instance. Below parameters are mandatory inputs to this tool.",
+      "description": "Fetches all available field names for a specified Wazuh index in OpenSearch, flattening nested fields. This tool is useful for understanding the schema and constructing accurate queries.",
       "input": [
         {
           "name": "task",
@@ -382,7 +382,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_get_single_matching_record",
-      "description": "Call this tool to get single matching record in the given index_name matching the given query from opensearch instance. send only bool query with must/should clauses. NOTE: it returns one raw json record only. Below parameters are mandatory inputs to this tool.",
+      "description": "Retrieves a single raw JSON record from a specified Wazuh index in OpenSearch that matches the provided boolean query. Use this tool for sampling or validating data in the index.",
       "input": [
         {
           "name": "task",
@@ -406,7 +406,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_choose_index_and_environment",
-      "description": "Tool to run to choose an index name relevant for the current triage_question for running the query. Below parameters are mandatory inputs to this tool. This tool fetches the correct Wazuh Opensearch index for triaging the question.",
+      "description": "Selects the most relevant Wazuh OpenSearch index and environment for a given triage question, ensuring that subsequent queries are executed against the correct data source.",
       "input": [
         {
           "name": "task",
@@ -440,7 +440,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_generate_query",
-      "description": "Tool Generates a Wazuh query with given input. Tool to run while triaging a requirement. Below parameters are **mandatory** inputs to this tool. Do not miss to send any and dont send placeholder values like <index_name>.",
+      "description": "Generates a Wazuh query for OpenSearch based on the provided triage context, including task, triage record, question, index, environment, and alert. This tool is critical for automating and standardizing security investigations.",
       "input": [
         {
           "name": "task",
@@ -484,7 +484,7 @@
     },
     {
       "name": "siem/wazuh/wazuh_run_query",
-      "description": "Tool to run while triaging a requirement. Below parameters are mandatory inputs to this tool. Runs a opensearch query in the customer's Wazuh opensearch instance and returns the result.",
+      "description": "Executes a Wazuh query in the customer's OpenSearch instance and returns the results. Use this tool to retrieve relevant security data for analysis and triage.",
       "input": [
         {
           "name": "task",
@@ -508,7 +508,7 @@
     },
     {
       "name": "siem/sentinel/generate_query",
-      "description": "Generates a Sentinel KQL query based on the input parameters given below. Below parameters are mandatory inputs to this tool. use table name derived from choose_table tool and use run_query to run generated query.",
+      "description": "Generates a Microsoft Sentinel KQL query using the provided triage context, including table name and alert context. Use this tool to automate the creation of queries for security investigations in Sentinel.",
       "input": [
         {
           "name": "tid",
@@ -542,7 +542,7 @@
     },
     {
       "name": "siem/sentinel/run_query",
-      "description": "Executes a given KQL query against the Sentinel Log Analytics workspace. Below parameters are mandatory inputs to this tool. Always follows a generate query to the generated query.",
+      "description": "Executes a KQL query against the Microsoft Sentinel Log Analytics workspace and returns the matching records. This tool is used to retrieve and analyze security data in Sentinel.",
       "input": [
         {
           "name": "query",
@@ -556,7 +556,7 @@
     },
     {
       "name": "siem/sentinel/choose_table",
-      "description": "Selects the appropriate Sentinel table provided below parameters. Below parameters are mandatory inputs to this tool. always precedes a generate query tool.",
+      "description": "Selects the most appropriate Microsoft Sentinel table for a given triage question, based on the provided context. This tool ensures that queries are executed against the correct data source in Sentinel.",
       "input": [
         {
           "name": "tid",
