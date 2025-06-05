@@ -1400,7 +1400,7 @@ class SentinelUtils:
             )
             return {"error": f"Error occurred: {str(e)}"}
 
-    def get_relevant_sentinel_tables(self, intcid: str, alert_tags: dict, min_score_threshold: int = 200) -> dict:
+    def get_relevant_sentinel_tables(self, intcid: str, alert_tags: dict, min_score_threshold: int = 20) -> dict:
         """
         Calculates relevance scores for Sentinel tables based on alert tags using a tiered scoring system
         and returns a sorted dictionary of relevant tables, implementing the new priority.
@@ -1534,7 +1534,11 @@ class SentinelUtils:
             table: score for table, score in table_scores.items()
             if score >= min_score_threshold
         }
+        
         sorted_relevant_tables = dict(sorted(relevant_tables.items(), key=lambda item: item[1], reverse=True))
+        selected_tables = list(sorted_relevant_tables.keys())
+        if len(selected_tables) > 15:
+            selected_tables = selected_tables[:15]
         Logger.info(f"Top relevant tables for intcid: {intcid}, tags: {parsed_alert_tags}: {sorted_relevant_tables}")
 
-        return {"matching_tables": list(sorted_relevant_tables.keys())}
+        return {"matching_tables": selected_tables}
