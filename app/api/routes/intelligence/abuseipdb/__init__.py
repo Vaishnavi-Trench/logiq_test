@@ -1,4 +1,4 @@
-"""VirusTotal routes package."""
+"""Abuse routes package."""
 
 from typing import Optional
 from fastapi import APIRouter, Path, Body
@@ -35,7 +35,7 @@ async def ip_reputation_route(
     """
     ip_address = request.ip_address
     Logger.info(
-        f"api: /intelligence/abuseipdb/get_ip_reputation_report/{intcid}: Retrieving reputation for IP {ip_address}"
+        f"api: /intelligence/abuse/get_ip_reputation_report/{intcid}: Retrieving reputation for IP {ip_address}"
     )
 
     result = {

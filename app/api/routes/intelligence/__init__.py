@@ -13,4 +13,4 @@ router = APIRouter(tags=["intelligence"])
 # Include sub-routers
 router.include_router(ipinfo_router, prefix="/ipinfo")
 router.include_router(virustotal_router, prefix="/virustotal")
-router.include_router(abuseipdb_router, prefix="/abuseipdb")
+router.include_router(abuseipdb_router, prefix="/abuse")
