@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from app.api.routes.siem.splunk import router as splunk_router
 from app.api.routes.siem.wazuh import router as wazuh_router
 from app.api.routes.siem.sentinel import router as sentinel_router
+from app.api.routes.siem.sumologic import router as sumologic_router
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["siem"])
@@ -14,3 +15,4 @@ router = APIRouter(tags=["siem"])
 router.include_router(splunk_router, prefix="/splunk")
 router.include_router(wazuh_router, prefix="/wazuh")
 router.include_router(sentinel_router, prefix="/sentinel")
+router.include_router(sumologic_router, prefix="/sumologic")
