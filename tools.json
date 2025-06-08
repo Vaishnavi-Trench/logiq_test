@@ -577,6 +577,11 @@
           "name": "alert_context",
           "type": "string",
           "description": "Mandatory: Alert Context derived for the received alert (as a JSON string)."
+        },
+        {
+          "name": "table_list",
+          "type": "array",
+          "description": "Mandatory: List of Sentinel tables available for querying. This should be a JSON array of table names."
         }
       ],
       "output": {

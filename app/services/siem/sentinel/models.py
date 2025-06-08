@@ -6,11 +6,11 @@ import operator
 class Environment(BaseModel):
     env: str
    
-# class TableName(BaseModel):
-#     table_name: str
+class TableName(BaseModel):
+    table_name: str
     
-class TableNames(BaseModel):
-    table_names: List[str]
+# class TableNames(BaseModel):
+#     table_names: List[str]
     
 class QueryTemplate(BaseModel):
     query_template: str

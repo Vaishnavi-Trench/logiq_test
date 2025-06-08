@@ -22,7 +22,8 @@ from app.services.siem.sentinel.utils import (
 )
 
 
-async def sentinel_choose_table_old(
+
+async def sentinel_choose_table(
     intcid: str,
     task: str,
     tid: str,
@@ -30,6 +31,7 @@ async def sentinel_choose_table_old(
     step_id: str,
     triage_question: str,
     alert_context: any,
+    tables_list: list
 ) -> dict:
     """Selects the appropriate Sentinel table using AI based on triage context and alert.
 
@@ -42,6 +44,7 @@ async def sentinel_choose_table_old(
         question_id: The specific question ID within the triage process.
         triage_question: The text of the triage question being addressed.
         alert: The relevant alert/event content (dict or JSON string).
+        tables_list: List of available Sentinel tables with schemas.
 
     Returns:
         A dictionary containing the chosen 'table_name' and 'env'.
@@ -131,6 +134,7 @@ async def sentinel_choose_table_old(
     )
     if table_metadata is not None:
         customer_tables_with_schema = table_metadata.get("indices")
+        
     else:
         # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
         # if "error" in table_schema:
@@ -153,42 +157,39 @@ async def sentinel_choose_table_old(
 
     if not table_name:
         try:
+            table_name_to_desc = {entry["index"]: entry["desc"] for entry in customer_tables_with_schema}
+
+            tables_name_and_description = [
+                {"table_name": table, "desc": table_name_to_desc.get(table, "")}
+                for table in tables_list
+            ]
             _template, _version = PromptManager.get_prompt_template(
-                intcid, "logiq", "SENTINEL_TABLE_SELECTION_PROMPT"
+                intcid, "genix", "KQL_QUERY_TABLE_SELECTION_PROMPT"
             )
-            table_prompt_template = PromptTemplate.from_template(_template)
-            formatted_tables_schema = json.dumps(customer_tables_with_schema, indent=2)
-            table_formatted_prompt = table_prompt_template.invoke(
-                {
-                    "requirement": triage_question,
-                    "available_table_details": formatted_tables_schema,
-                    "alert": alert_str,
-                }
+            prompt_template = PromptTemplate.from_template(_template)
+
+            prompt = prompt_template.invoke(
+                {"alert":alert_str, "requirement": task, "triage_question": triage_question,"alert_context": alert_str, "tables_list": tables_name_and_description}
             ).text
-            Logger.debug(
-                f"Formatted prompt for Sentinel table selection: {table_formatted_prompt}"
-            )
-
             system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response."
-            response_str = AIManager.run_prompt_with_structured_output(
-                model_name,
-                table_formatted_prompt,
-                sentinel_models.TableName,
-                system_prompt=system_prompt,
+            
+            
+            response = AIManager.run_prompt_with_structured_output(
+                model_name, prompt, sentinel_models.TableName
             )
-            Logger.debug(f"AI response for table selection: {response_str}")
-
-            response_data = response_str.model_dump()
-
+            Logger.debug(f"AI response for table selection: {response}")
+            response_data = response.model_dump()
+            table_name = response_data.get("table_name")
+            Logger.info(f"Table Names: {table_name}")
             PromptManager.save_prompt_history(
                 intcid,
                 "logiq",
                 tid,
-                "SENTINEL_TABLE_SELECTION_PROMPT",
+                "KQL_QUERY_TABLE_SELECTION_PROMPT",
                 _version,
                 model_name,
                 system_prompt,
-                table_formatted_prompt,
+                prompt,
                 response_data,
                 model_class=sentinel_models.TableName,
                 qid=question_id,
@@ -200,217 +201,6 @@ async def sentinel_choose_table_old(
                 Logger.error("Failed to parse AI response during table selection.")
                 return {"error": "Failed to parse AI response during table selection."}
 
-            table_name = response_data.get("table_name", None)
-
-            Logger.debug(
-                f"AI selected table name: {table_name}, available tables: {customer_tables_with_schema}"
-            )
-            if not table_name:
-                Logger.error(
-                    f"AI selected an invalid or unavailable table: '{table_name}'. Response: {response_str}"
-                )
-                return {
-                    "error": f"AI failed to select a valid table. Selection: '{table_name}'"
-                }
-
-            try:
-                sentinel_utils.push_table_name_to_mongo(
-                    intcid,
-                    "sentinel",
-                    env,
-                    tid,
-                    question_id,
-                    step_id,
-                    triage_question,
-                    table_name,
-                )
-            except Exception as mongo_e:
-                Logger.warn(
-                    f"Failed to push AI-selected table name to MongoDB: {mongo_e}"
-                )
-
-            Logger.info(f"Sentinel table chosen by AI: {table_name}")
-        except Exception as e:
-            Logger.error(
-                f"Error during Sentinel table selection: {e}\n{traceback.format_exc()}"
-            )
-            return {
-                "error": f"An unexpected error occurred during table name selection: {e}"
-            }
-
-    return {"table_name": table_name, "env": env}
-
-
-async def sentinel_choose_table(
-    intcid: str,
-    task: str,
-    tid: str,
-    question_id: str,
-    step_id: str,
-    triage_question: str,
-    alert_context: any,
-) -> dict:
-    """Selects the appropriate Sentinel table using AI based on triage context and alert.
-
-    Fetches available tables with schemas, checks cache, uses AI for selection
-    if needed, caches the result, and stores it in MongoDB.
-
-    Args:
-        intcid: The customer integration ID.
-        tid: The triage ID.
-        question_id: The specific question ID within the triage process.
-        triage_question: The text of the triage question being addressed.
-        alert: The relevant alert/event content (dict or JSON string).
-
-    Returns:
-        A dictionary containing the chosen 'table_name' and 'env'.
-        Returns an error dictionary if table fetching or selection fails.
-        Example success: {'table_name': 'SecurityEvent', 'env': 'Production'}
-        Example error: {'error': 'No suitable Sentinel tables found.'}
-    """
-    Logger.info(
-        f"tool:sentinel_choose_table: Starting for {intcid}, TID: {tid}, QID: {question_id}"
-    )
-
-    sentinel_utils = SentinelUtils(intcid=intcid)
-    model_name = PropX.get_property("module.llm.model")
-
-    if not model_name:
-        Logger.error("Model name not found in configuration.")
-        return {"error": "Model name not found in configuration."}
-
-    if not sentinel_utils.authenticate():
-        return {"error": "Authentication failed. Check configuration and credentials."}
-
-    workspace_id = sentinel_utils.get_workspace_id()
-    if not workspace_id:
-        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
-
-    alert_str = (
-        json.dumps(alert_context)
-        if isinstance(alert_context, dict)
-        else str(alert_context)
-    )
-
-    # --- Determine Environment ---
-    env = None
-    try:
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
-        )
-        env_prompt_template = PromptTemplate.from_template(_template)
-        env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
-        system_prompt = "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated"
-        env_response = AIManager.run_prompt_with_structured_output(
-            model_name,
-            env_formatted_prompt,
-            sentinel_models.Environment,
-            system_prompt=system_prompt,
-        )
-
-        if env_response is None:
-            return {"error": "Failed to parse AI response for environment selection."}
-
-        Logger.debug(f"AI response for environment selection: {env_response}")
-
-        env_response = env_response.model_dump()
-
-        PromptManager.save_prompt_history(
-            intcid,
-            "logiq",
-            tid,
-            "SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-            _version,
-            model_name,
-            system_prompt,
-            env_formatted_prompt,
-            env_response,
-            model_class=sentinel_models.Environment,
-            qid=question_id,
-            step_id=step_id,
-            category="environment_selection",
-        )
-
-        env = env_response.get("env", "unknown").lower()
-
-        if not env:
-            Logger.warn(f"Could not determine environment from AI response: {env}")
-            return {"error": "Failed to determine environment."}
-        Logger.info(f"Determined environment: {env}")
-    except Exception as e:
-        Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
-        return {"error": f"Failed to determine environment: {e}"}
-
-    # --- Get Available Tables ---
-
-    query = {"intcid": intcid, "vendor": "sentinel", "subtype": "index_list"}
-
-    table_metadata = MongoDBManager.get_record_by_multiple_fields(
-        sentinel_utils.main_db, sentinel_utils.toolsmetadata_db, query
-    )
-    if table_metadata is not None:
-        customer_tables_with_schema = table_metadata.get("indices")
-    else:
-        # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
-        # if "error" in table_schema:
-        #     Logger.error(
-        #         f"Failed to get Sentinel tables for {intcid}: {table_schema['error']}"
-        #     )
-        #     return {
-        #         "error": f"Failed to retrieve Sentinel tables: {table_schema['error']}"
-        #     }
-        # else:
-        #     customer_tables_with_schema = table_schema.get("tables_with_schema")
-        return {"error": "Failed to retrieve Sentinel tables. No metadata found."}
-
-    try:
-        table_name = sentinel_utils.get_table_name_from_mongo(
-            intcid, "sentinel", env, tid, question_id, step_id
-        )
-    except Exception as mongo_e:
-        Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
-
-    if not table_name:
-        try:
-            _template, _version = PromptManager.get_prompt_template(
-                intcid, "genix", "KQL_QUERY_TABLE_SELECTION_PROMPT"
-            )
-            prompt_template = PromptTemplate.from_template(_template)
-
-            prompt = prompt_template.invoke(
-                {"alert":alert_str, "requirement": task, "triage_question": triage_question, "tables_list": customer_tables_with_schema, "alert_context": alert_str}
-            ).text
-            system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response."
-            
-            
-            response = AIManager.run_prompt_with_structured_output(
-                model_name, prompt, sentinel_models.TableNames
-            )
-            Logger.debug(f"AI response for table selection: {response}")
-            response_data = response.model_dump()
-            table_names = response_data.get("table_names")
-            Logger.info(f"Table Names: {table_names}")
-            PromptManager.save_prompt_history(
-                intcid,
-                "logiq",
-                tid,
-                "KQL_QUERY_TABLE_SELECTION_PROMPT",
-                _version,
-                model_name,
-                system_prompt,
-                prompt,
-                response_data,
-                model_class=sentinel_models.TableNames,
-                qid=question_id,
-                step_id=step_id,
-                category="table_selection",
-            )
-
-            if response_data is None:
-                Logger.error("Failed to parse AI response during table selection.")
-                return {"error": "Failed to parse AI response during table selection."}
-
-            table_name = table_names[0]
 
             Logger.debug(
                 f"AI selected table name: {table_name}, available tables: {customer_tables_with_schema}"
