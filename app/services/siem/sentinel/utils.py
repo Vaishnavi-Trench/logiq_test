@@ -11,6 +11,7 @@ import re  # Import regex for checking limit patterns
 from datetime import datetime, timezone
 import collections
 from pltfrm import PropX, Logger2 as Logger, MongoDBManager
+from typing import List, Dict, Any
 
 # Removed global property assignments
 
@@ -33,6 +34,9 @@ class SentinelUtils:
         self.integration_db = PropX.get_property("module.integration.config.collection")
         self.toolsmetadata_db = PropX.get_property(
             "module.integration.metadata.collection"
+        )
+        self.trenchrecords_db = PropX.get_property(
+            "module.trenchrun.collection"
         )
         self.templates_db = PropX.get_property("module.templates.collection")
         config = MongoDBManager.get_record_by_multiple_fields(
@@ -1542,3 +1546,54 @@ class SentinelUtils:
         Logger.info(f"Top relevant tables for intcid: {intcid}, tags: {parsed_alert_tags}: {sorted_relevant_tables}")
 
         return {"matching_tables": selected_tables}
+    
+    
+    def get_top_matching_tables(self, intcid: str, tid: str) -> list:
+        
+        filter = {
+            "intcid": intcid,
+            "tid": tid,
+        }
+        try:
+            doc = MongoDBManager.get_record_by_multiple_fields(
+                self.main_db, self.trenchrecords_db, filter
+            )
+            if doc and "matching_tables" in doc:
+                matching_tables = doc["matching_tables"]
+                Logger.info(f"Found matching tables for intcid: {intcid}, tid: {tid}: {matching_tables}")
+                return matching_tables
+            else:
+                Logger.info(f"No matching tables found for intcid: {intcid}, tid: {tid}.")
+                return []
+        except Exception as e:
+            Logger.error(f"Error retrieving matching tables for intcid: {intcid}, tid: {tid}: {e}")
+            return []
+        
+    def parse_indices(self, indices_data: List[Dict[str, Any]]) -> str:
+        
+        Logger.debug(f"Parsing indices: {indices_data}")
+        
+        if not indices_data:
+            return "No SIEM indices available"
+            
+        try:
+            # Build the formatted string
+            output = ["Available SIEM Indices:\n"]
+            
+
+            for idx, info in enumerate(indices_data, 1):
+                index_name = info.get('index', 'Unknown Index')
+                description = info.get('desc', 'No description available')
+                
+                # Add formatted index information
+                output.append(f"{idx}. {index_name}")
+                output.append(f"   Description: {description}")
+                
+            # Join all lines with newlines
+            formatted_output = "\n".join(output)
+            Logger.debug(f"Formatted indices output: {formatted_output}")
+            
+            return formatted_output
+        except Exception as e:
+            Logger.error(f"Error formatting indices: {e}")
+            return "Error formatting SIEM indices"

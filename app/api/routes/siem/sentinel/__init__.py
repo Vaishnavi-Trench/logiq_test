@@ -110,9 +110,6 @@ class SentinelChooseTableRequest(BaseModel):
     alert_context: Any = Field(
         ..., description="The relevant alert context content (dict or string)."
     )
-    table_list: List[str] = Field(
-        ..., description="List of table names to choose from for the query."
-    )
 
 
 class SentinelGetSingleRecordRequest(BaseModel):
@@ -575,7 +572,6 @@ async def choose_table_route(
             request.step_id,
             request.triage_question,
             request.alert_context,
-            request.table_list
         )
         return result
     except Exception as e:

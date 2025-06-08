@@ -31,7 +31,6 @@ async def sentinel_choose_table(
     step_id: str,
     triage_question: str,
     alert_context: any,
-    tables_list: list
 ) -> dict:
     """Selects the appropriate Sentinel table using AI based on triage context and alert.
 
@@ -44,7 +43,6 @@ async def sentinel_choose_table(
         question_id: The specific question ID within the triage process.
         triage_question: The text of the triage question being addressed.
         alert: The relevant alert/event content (dict or JSON string).
-        tables_list: List of available Sentinel tables with schemas.
 
     Returns:
         A dictionary containing the chosen 'table_name' and 'env'.
@@ -157,12 +155,13 @@ async def sentinel_choose_table(
 
     if not table_name:
         try:
+            tables_list = sentinel_utils.get_top_matching_tables(intcid, tid)
             table_name_to_desc = {entry["index"]: entry["desc"] for entry in customer_tables_with_schema}
-
-            tables_name_and_description = [
-                {"table_name": table, "desc": table_name_to_desc.get(table, "")}
+            tables_name_and_description_list = [
+                {"index": table, "desc": table_name_to_desc.get(table, "")}
                 for table in tables_list
             ]
+            tables_name_and_description = sentinel_utils.parse_indices(tables_name_and_description_list)
             _template, _version = PromptManager.get_prompt_template(
                 intcid, "genix", "KQL_QUERY_TABLE_SELECTION_PROMPT"
             )
