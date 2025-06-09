@@ -156,6 +156,9 @@ async def sentinel_choose_table(
     if not table_name:
         try:
             tables_list = sentinel_utils.get_top_matching_tables(intcid, tid)
+            Logger.info(
+                f"Top matching tables for {intcid} and TID {tid}: {tables_list}"
+            )
             table_name_to_desc = {entry["index"]: entry["desc"] for entry in customer_tables_with_schema}
             tables_name_and_description_list = [
                 {"index": table, "desc": table_name_to_desc.get(table, "")}
