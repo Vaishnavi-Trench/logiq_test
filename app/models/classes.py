@@ -229,3 +229,69 @@ class DataSources(BaseModel):
     """Model for suggesting rules based on alert context."""
 
     sources: List[DataSource] = Field(default_factory=list)
+
+
+# Nurix related classes
+class Feedbacks(BaseModel):
+    point: str = Field(
+        description='<feedback> feedback references an entity (such as a user, IP, or organization) that is specified in the triage record, replace general references (e.g., "The user") with the specific entity from the triage data.'
+    )
+    priority: str = Field(
+        description='Classify each point as either "low", "medium" and "high".'
+    )
+
+
+class FeedbackAnalysis(BaseModel):
+    feedbacks: List[Feedbacks] = Field(description="List of points")
+
+
+class DatapointEntity(BaseModel):
+    type: str = Field(
+        description="Classify the entity type as either ipaddress, user, domain, file, process, url, hash, or other."
+    )
+    value: str = Field(
+        description="The specific value of the entity, such as an IP address, user name, domain name, file name, process name, URL, or hash."
+    )
+
+
+class InstructionInsight(BaseModel):
+    type: str = Field(
+        description='Classify the content type as either "playbook" or "datapoint".'
+    )
+    content: str = Field(
+        description="A concise and actionable data point extracted from the feedback and triage label."
+    )
+    confidence: str = Field(
+        description="Classify the insight as either 'low', 'medium', or 'high' based on its significance for future triaging."
+    )
+    reason: str = Field(
+        description="A brief explanation of why this insight was derived from the given input."
+    )
+    entities: Optional[List[DatapointEntity]] = Field(
+        description="List of entities related to the insight, such as IP addresses, users, domains, etc."
+    )
+
+
+class InstructionInsightsAnalysis(BaseModel):
+    insights: List[InstructionInsight] = Field(
+        description="List of extracted insights for future triaging."
+    )
+
+
+class NotesClassification(BaseModel):
+    classification: str = Field(
+        description='Classify the feedback as either "Informative" or "Playbook Related Instruction".'
+    )
+
+
+class FeedbackImprovementSuggestion(BaseModel):
+    category_id: str = Field(description="The category ID of the question.")
+    question: str = Field(description="The question of the feedback.")
+    answer: str = Field(description="The answer of the feedback.")
+    suggestion: str = Field(description="The suggestion for the feedback.")
+
+
+class FeedbackImprovementSuggestions(BaseModel):
+    suggestions: List[FeedbackImprovementSuggestion] = Field(
+        description="List of feedback improvement suggestions."
+    )
