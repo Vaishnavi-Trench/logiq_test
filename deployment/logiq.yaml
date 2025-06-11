@@ -4,7 +4,7 @@ metadata:
   name: logiq
   namespace: trench-prod
 spec:
-  replicas: 1
+  replicas: 5
   selector:
     matchLabels:
       app: logiq
@@ -19,10 +19,10 @@ spec:
           image: gcr.io/trench-production/docker-repo/logiq:<BUILD_TAG>
           resources:
             requests:
-              memory: 500Mi
+              memory: 800Mi
               cpu: 500m
             limits:
-              memory: 500Mi
+              memory: 800Mi
               cpu: 500m
           volumeMounts:
             - mountPath: "/mnt/secrets/"
