@@ -11,7 +11,6 @@ from pydantic import ValidationError
 
 # Removed google.generativeai and openai imports as they were commented out
 from openai import AzureOpenAI, OpenAI
-
 from ..logger2 import Logger2 as Logger
 from ..propx import PropX
 
@@ -70,6 +69,7 @@ class AIManager(Singleton):
         model_list = PropX.get_property("aimgr.agent.models").split(",")
         Logger.info(f"[AImgr] Models: {model_list}")
         for model_name in model_list:
+            model_name = model_name.strip()  # Ensure no leading/trailing spaces
             type = PropX.get_property(f"aimgr.{model_name}.type")
             if type == "azure":
                 api_version = PropX.get_property(f"aimgr.{model_name}.api.version")
@@ -77,7 +77,7 @@ class AIManager(Singleton):
                 api_key = PropX.get_property(f"aimgr.{model_name}.api.key")
                 deployment_name = PropX.get_property(f"aimgr.{model_name}.agent.model")
                 max_tokens = PropX.get_property(f"aimgr.{model_name}.max.tokens")
-
+                max_completion_tokens = max_tokens
                 client = AzureOpenAI(
                     api_version=api_version,
                     azure_endpoint=endpoint,
@@ -98,6 +98,7 @@ class AIManager(Singleton):
                     "model": deployment_name,
                     "api_key": api_key,
                     "max_tokens": max_tokens,
+                    "max_completion_tokens": max_completion_tokens,
                     "client": client,
                     "chat_client": chat_client,
                 }
@@ -172,18 +173,21 @@ class AIManager(Singleton):
         connection = instance.get_connection(model_name)
         model = connection.get("model")
         max_tokens = connection.get("max_tokens")
+        max_completion_tokens = connection.get("max_completion_tokens")
         client = connection.get("client")
-        completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
+        # Use correct parameter depending on which is set
+        completion_kwargs = {
+            "messages": [
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=max_tokens,
-            model=model,
-        )
+            "model": model,
+        }
+        if max_completion_tokens is not None:
+            completion_kwargs["max_completion_tokens"] = max_completion_tokens
+        elif max_tokens is not None:
+            completion_kwargs["max_tokens"] = max_tokens
+        completion = client.chat.completions.create(**completion_kwargs)
         return completion.choices[0].message.content
 
     @staticmethod
