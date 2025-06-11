@@ -1138,6 +1138,12 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     Logger.info(
         f"Finished executing KQL query for task: {task}. Found {len(all_records)} records."
     )
+    if len(all_records) > 10:
+        Logger.info(
+            f"Query returned {len(all_records)} records, truncating to first 10 for performance."
+        )
+        all_records = all_records[:10]
+        
     return {"query_results": all_records}
 
 
