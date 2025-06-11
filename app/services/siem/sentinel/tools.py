@@ -831,6 +831,10 @@ async def sentinel_generate_kql_query(
                 Logger.debug(f"Final KQL query: {final_kql_query}")
                 #Sanitize KQL query
                 final_kql_query = final_kql_query.replace('\\n', '\n')
+                # Add limit 10 to the final KQL query if not already present
+                if "| limit" not in final_kql_query.lower():
+                    final_kql_query = f"{final_kql_query.strip()}\n| limit 10"
+                
                 return {"query": final_kql_query}
             else:
                 last_error_msg = msg
@@ -1138,11 +1142,6 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     Logger.info(
         f"Finished executing KQL query for task: {task}. Found {len(all_records)} records."
     )
-    if len(all_records) > 10:
-        Logger.info(
-            f"Query returned {len(all_records)} records, truncating to first 10 for performance."
-        )
-        all_records = all_records[:10]
         
     return {"query_results": all_records}
 
@@ -1603,7 +1602,6 @@ async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
     except Exception as e:
         Logger.error(f"Error retrieving matching tables: {e}")
         return {"error": f"An error occurred while retrieving matching tables: {e}"}
-    
-    
-    
-    
+
+
+
