@@ -109,12 +109,9 @@ def is_whitelist_ip(ip_address: str, intcid: str = None) -> dict:
     Supports configTypes: ipaddress, ipnetwork, iprange.
     Returns a dictionary with result, description, and matching entry if found.
     """
-    print("hi")
     main_db = PropX.get_property("module.integration.config.db")
     collection_name = PropX.get_property("module.configurations.collection")
-    query = {"listType": "whitelist"}
-    if intcid:
-        query["intcid"] = intcid
+    query = {"listType": "whitelist", "intcid": intcid} if intcid else {"listType": "whitelist"}
     whitelist_entries = MongoDBManager.get_record_by_multiple_fields(main_db, collection_name, query)
     whitelist_entries = flatten_dicts_only(whitelist_entries)
     # Defensive: ensure all entries are dicts
@@ -156,9 +153,7 @@ def is_blocklist_ip(ip_address: str, intcid: str = None) -> dict:
     """
     main_db = PropX.get_property("module.integration.config.db")
     collection_name = PropX.get_property("module.configurations.collection")
-    query = {"listType": "blocklist"}
-    if intcid:
-        query["intcid"] = intcid
+    query = {"listType": "blocklist", "intcid": intcid} if intcid else {"listType": "blocklist"}
     blocklist_entries = MongoDBManager.get_record_by_multiple_fields(main_db, collection_name, query)
     blocklist_entries = flatten_dicts_only(blocklist_entries)
     # Defensive: ensure all entries are dicts

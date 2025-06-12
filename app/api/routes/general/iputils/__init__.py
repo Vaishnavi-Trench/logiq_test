@@ -49,8 +49,7 @@ async def is_whitelist_ip_route(
     ip_address = request.ip_address
     Logger.info(f"api: /general/iputils/is_whitelist_ip/{intcid}: {ip_address}")
     try:
-        result = tools.is_whitelist_ip(ip_address)
-        # Only keep 'result' and 'description' keys
+        result = tools.is_whitelist_ip(ip_address, intcid)
         filtered_result = {k: v for k, v in result.items() if k in ("result", "description")}
         return filtered_result
     except Exception as e:
@@ -69,7 +68,7 @@ async def is_blocklist_ip_route(
     ip_address = request.ip_address
     Logger.info(f"api: /general/iputils/is_blocklist_ip/{intcid}: {ip_address}")
     try:
-        result = tools.is_blocklist_ip(ip_address)
+        result = tools.is_blocklist_ip(ip_address, intcid)
         filtered_result = {k: v for k, v in result.items() if k in ("result", "description")}
         return filtered_result
     except Exception as e:
