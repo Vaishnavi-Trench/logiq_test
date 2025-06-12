@@ -67,3 +67,4 @@ async def is_blocklist_ip_route(
             status_code=500,
             content={"error": f"Failed in checking blocklist ip: {str(e)}"},
         )
+

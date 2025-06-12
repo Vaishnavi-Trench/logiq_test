@@ -1366,35 +1366,7 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
     else:
         Logger.warn("Target table name could not be determined. Cannot fetch schema.")
 
-    # --- Step 3: Get Sample Matching Records ---
-    # Note: Fetching samples might be less relevant if context_data is already a list of alerts.
-    # We fetch from the target_table_name determined earlier.
-    # matching_records = []
-    # matching_records_str = "[]"
-    # if target_table_name:
-    #     # Basic query for sample records from the target table
-    #     sample_kql_query = f"{target_table_name} | take 5" # Limit sample size
-    #     Logger.info(
-    #         f"Fetching sample records from '{target_table_name}' using query: {sample_kql_query}"
-    #     )
-    #     matching_records_result = sentinel_utils.get_matching_records(
-    #         intcid, target_table_name, sample_kql_query
-    #     )
 
-    #     if "error" in matching_records_result:
-    #         Logger.warn(
-    #             f"Failed to get sample matching records for '{target_table_name}': {matching_records_result['error']}"
-    #         )
-    #     else:
-    #         matching_records = matching_records_result.get("matching_records", [])
-    #         if not matching_records:
-    #             Logger.info(f"No sample matching records found for '{target_table_name}'.")
-    #         else:
-    #             Logger.info(f"Found {len(matching_records)} sample matching records for '{target_table_name}'.")
-    # else:
-    #     Logger.warn("Target table name unknown. Cannot fetch sample records.")
-
-    # --- Step 4: AI Call for Context Extraction ---
     try:
         _template, _version = PromptManager.get_prompt_template(
             intcid, "logiq", "TEST_ALERT_CONTEXT_EXTRACTION_PROMPT"
@@ -1442,6 +1414,20 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
         alert_context["env"] = env  # Ensure env is included
         alert_context["alert_type"] = original_alert_type
         Logger.info(f"Successfully extracted alert context for task: {task}")
+        
+        user_name_value = alert_context.get("extracted_fields", {}).get("user_name", {}).get("value")
+
+        if user_name_value:
+            extracted_name = user_name_value.split('@')[0]
+            user_email = sentinel_utils.user_lookup(intcid, extracted_name)
+            if user_email:
+                alert_context["extracted_fields"]["email"] = {
+                    "description": "User name or UPN involved",
+                    "field_name": "user.email", 
+                    "value": user_email,
+                    "confidence": "high"
+                 }
+                alert_context["extracted_fields"]["user_name"]["value"] = extracted_name
         return alert_context
 
     except Exception as e:

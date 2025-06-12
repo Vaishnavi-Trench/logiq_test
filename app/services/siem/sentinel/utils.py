@@ -1597,3 +1597,31 @@ class SentinelUtils:
         except Exception as e:
             Logger.error(f"Error formatting indices: {e}")
             return "Error formatting SIEM indices"
+        
+    def user_lookup(self, intcid: str, username: str) -> str:
+        """
+        Looks up user information in the MongoDB collection.
+
+        Args:
+            username (str): The username to look up.
+            intcid (str): Integration/Customer ID for logging.
+
+        Returns:
+            dict: User information if found, otherwise an empty dictionary.
+        """
+        Logger.info(f"Looking up user '{username}' for intcid: {intcid}")
+        filter = {"intcid": intcid, "type": "siem", "subtype": "lookup_table"}
+        
+        user_lookup_collection = MongoDBManager.get_record_by_multiple_fields(self.main_db, self.toolsmetadata_db, filter)
+        if not user_lookup_collection:
+            Logger.warn(f"No user lookup collection found for intcid: {intcid}")
+            return ""
+        user_lookup = user_lookup_collection["user_lookup_table"]
+        
+        if user_lookup[username]:
+            user_info = user_lookup[username]
+            Logger.info(f"Found user info for '{username}': {user_info}")
+            return user_info
+        else:
+            return ""
+        
