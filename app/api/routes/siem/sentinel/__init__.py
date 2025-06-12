@@ -24,6 +24,7 @@ from app.services.siem.sentinel.tools import (
     sentinel_get_alert_context,  # Added import
     fetch_sample_records,  # Added import
     sentinel_generate_kql_query_template,  # Added new import
+    standalone_sentinel_prepare_kql_query,
     # test_sentinel_generate_kql_query,  # Added new import
     test_sentinel_choose_table,  # Added new import
     sentinel_functions,
@@ -84,6 +85,12 @@ class GenerateSentinelQueryRequest(BaseModel):
     triage_question: str
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
+
+class PrepareSentinelQueryRequest(BaseModel):
+    task: str
+    alert_context: dict
+    query_template: str
+
 
 class SentinelFunctionsRequest(BaseModel):
     task: str = Field(..., description="The task description for the request.")
@@ -446,7 +453,7 @@ async def generate_query_route(
 
     Args:
         intcid: Customer ID
-        request_body: Request body containing task, table name, alert, and triage context.
+        request_body: Request body containing task, alert_context, and query_template.
 
     Returns:
         JSON object with generated Sentinel KQL query.
@@ -492,7 +499,61 @@ async def generate_query_route(
         )
 
 
-# --- New Routes ---
+@router.post("/standalone_prepare_query/{intcid}")
+async def prepare_query_route(
+    request: Request,
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: PrepareSentinelQueryRequest = Body(
+        ...,
+        description="Request to prepare Sentinel KQL query",
+    ),
+):
+    """
+    Prepare a Sentinel KQL query based on the requirement, alert, and context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task, table name, alert, and triage context.
+
+    Returns:
+        JSON object with prepared Sentinel KQL query.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/standalone_prepare_query/{intcid}: {request_body.task}"
+    )
+    try:
+        raw_body = await request.body()
+        sanitized_payload = raw_body.decode()[:100]  # Log only the first 100 characters
+        Logger.info(f"REQUEST PAYLOAD for prepare_query/{intcid}: {sanitized_payload}")
+    except Exception as e:
+        Logger.error(f"Failed to log request payload: {str(e)}")
+
+    # Also log the validated request object
+    try:
+        Logger.info(
+            f"VALIDATED REQUEST for prepare_query/{intcid}: {request_body.json()}"
+        )
+    except Exception as e:
+        Logger.error(f"Failed to log validated request: {str(e)}")
+
+    try:
+        result = await standalone_sentinel_prepare_kql_query(
+            intcid,
+            request_body.task,
+            request_body.alert_context,
+            request_body.query_template
+        )
+        return result
+
+    except Exception as e:
+        Logger.error(f"Error preparing Sentinel KQL query: {str(e)}")
+        Logger.error(
+            f"Error preparing Sentinel KQL query: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to prepare Sentinel KQL query: {str(e)}"},
+        )
 
 
 @router.post("/run_query/{intcid}")

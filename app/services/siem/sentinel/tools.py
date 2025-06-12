@@ -849,9 +849,7 @@ async def sentinel_generate_kql_query(
     return {
         "error": f"Failed to generate valid KQL after {max_retries} attempts. Last error: {last_error_msg}"
     }
-
-
-
+    
 async def sentinel_prepare_kql_query(
     intcid: str,
     task: str,
@@ -925,6 +923,78 @@ async def sentinel_prepare_kql_query(
         queries.append(query)
         Logger.info(f"Query: {query}")
     return {"queries": queries}
+
+async def standalone_sentinel_prepare_kql_query(
+    intcid: str,
+    task: str,
+    alert_context: dict,
+    query_template: str
+):
+    """Prepares a KQL query by replacing field placeholders with actual values.
+
+    Args:
+        intcid: The customer integration ID.
+        task: The specific task or information needed (requirement).
+        alert_context: The alert context.
+        query_template: The KQL query template with placeholders.
+
+    Returns:
+        A dictionary containing the final KQL query under the key 'query'.
+        Returns an error dictionary if preparation fails.
+        Example success: {'query': 'SecurityEvent | where ...'}
+        Example error: {'error': 'Failed to prepare KQL query.'}
+    """
+    Logger.info(f"tool:standalone_sentinel_prepare_kql_query: Starting for {intcid}, Task: {task}")
+    
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    workspace_id = sentinel_utils.get_workspace_id()
+    if not workspace_id:
+        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
+
+    
+    _template, _version = PromptManager.get_prompt_template(
+        intcid, "logiq", "KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT"
+    )
+    
+    replacement_prompt_template = PromptTemplate.from_template(_template)
+    replacement_formatted_prompt = replacement_prompt_template.invoke(
+        {
+            "requirement": task,
+            "query_template": query_template,
+            "alert": alert_context,
+        }
+    ).text
+
+    AIManager.token_calculator(
+        PropX.get_property("module.llm.model"),
+        "KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT",
+        replacement_formatted_prompt,
+    )
+
+    query = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"),
+        replacement_formatted_prompt,
+        sentinel_models.FinalQuery,
+        system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to replace field placeholders in the provided KQL query template with actual values based on the alert context. The output should be a valid KQL query that can be executed against the specified table.",
+    )
+    query = query.model_dump()
+    query = query.get("final_query")
+    if not query:
+        return {"error": "Failed to prepare KQL query. No final query generated."}
+    Logger.info(f"Final KQL Query: {query}")
+    isValid, msg = sentinel_utils.validate_sentinel_kql(query, intcid)
+    if not isValid:
+        return {"error": f"Prepared KQL query is invalid: {msg}"}
+    #Sanitize KQL query
+    query = query.replace('\\n', '\n')
+    # Add limit 10 to the final KQL query if not already present
+    if "| limit" not in query.lower():
+        query = f"{query.strip()}\n| limit 10"
+    return {"query": query}
+         
 
 
 async def sentinel_generate_kql_query_template(
