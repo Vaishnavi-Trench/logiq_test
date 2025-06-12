@@ -1,8 +1,11 @@
 """ip utils tool"""
 
 import ipaddress
+from pltfrm import PropX, MongoDBManager
 from pltfrm import Logger2 as Logger
-
+import datetime
+from bson import ObjectId
+import json
 
 def get_ip_type(ip_address: str) -> dict:
     """
@@ -100,71 +103,105 @@ def get_ip_type(ip_address: str) -> dict:
     return summary
 
 
-def is_whitelist_ip(ip_address: str) -> dict:
-    # Pre-validation checks
-    whitelist_report = {}
-    summary = get_ip_type(ip_address)
-    if not summary["valid"]:
-        whitelist_report["description"] = summary["description"]
+def is_whitelist_ip(ip_address: str, intcid: str = None) -> dict:
+    """
+    Checks if the IP address is present in the whitelist collection for the given intcid.
+    Supports configTypes: ipaddress, ipnetwork, iprange.
+    Returns a dictionary with result, description, and matching entry if found.
+    """
+    print("hi")
+    main_db = PropX.get_property("module.integration.config.db")
+    collection_name = PropX.get_property("module.configurations.collection")
+    query = {"listType": "whitelist"}
+    if intcid:
+        query["intcid"] = intcid
+    whitelist_entries = MongoDBManager.get_record_by_multiple_fields(main_db, collection_name, query)
+    whitelist_entries = flatten_dicts_only(whitelist_entries)
+    # Defensive: ensure all entries are dicts
+    non_dicts = [type(e) for e in whitelist_entries if not isinstance(e, dict)]
+    if non_dicts:
+        raise Exception(f"Sanitization failed: whitelist_entries contains non-dict types: {non_dicts}")
 
-    if summary["type"] == "private":
-        whitelist_report["result"] = (
-            "error: invalid ip address not applicable for whitelist check"
-        )
-        whitelist_report["description"] = (
-            "IP address belongs to Private ip address range. Need not check for whitelist. It is usually a trusted internal access."
-        )
-    elif summary["type"] == "loopback":
-        whitelist_report["result"] = (
-            "error: loopback ip address not applicable for whitelist check"
-        )
-        whitelist_report["description"] = (
-            "IP address belongs to Loopback ip address range. Need not check against whitelist."
-        )
-    elif summary["type"] == "link_local":
-        whitelist_report["result"] = (
-            "error: link_local ip address not applicable for whitelist check"
-        )
-        whitelist_report["description"] = (
-            "IP address belongs to Link local range. Need not check against whitelist."
-        )
+    try:
+        ip_obj = ipaddress.ip_address(ip_address)
+    except ValueError as e:
+        return {"result": False, "description": f"Invalid IP address: {str(e)}"}
 
-    # check against whitelist here
-    whitelist_report["result"] = "false"
-    whitelist_report["description"] = "Not a whitelist IP"
-    return whitelist_report
+    for entry in whitelist_entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("configType") == "ipaddress" and entry.get("value") == ip_address:
+            return {"result": True, "description": entry.get("description", "Whitelisted")}
+        elif entry.get("configType") == "iprange":
+            try:
+                start_ip, end_ip = entry.get("value", "").split("-")
+                if ipaddress.ip_address(ip_address) >= ipaddress.ip_address(start_ip.strip()) and ipaddress.ip_address(ip_address) <= ipaddress.ip_address(end_ip.strip()):
+                    return {"result": True, "description": entry.get("description", "Whitelisted range")}
+            except Exception:
+                continue
+        elif entry.get("configType") == "ipnetwork":
+            try:
+                if ipaddress.ip_address(ip_address) in ipaddress.ip_network(entry.get("value")):
+                    return {"result": True, "description": entry.get("description", "Whitelisted network")}
+            except Exception:
+                continue
+    return {"result": False, "description": "IP address is not whitelisted"}
 
 
-def is_blocklist_ip(ip_address: str) -> dict:
-    # Pre-validation checks
-    blocklist_report = {}
-    summary = get_ip_type(ip_address)
-    if not summary["valid"]:
-        blocklist_report["description"] = summary["description"]
+def is_blocklist_ip(ip_address: str, intcid: str = None) -> dict:
+    """
+    Checks if the IP address is present in the blocklist collection for the given intcid.
+    Supports configTypes: ipaddress, ipnetwork, iprange.
+    Returns a dictionary with result, description, and matching entry if found.
+    """
+    main_db = PropX.get_property("module.integration.config.db")
+    collection_name = PropX.get_property("module.configurations.collection")
+    query = {"listType": "blocklist"}
+    if intcid:
+        query["intcid"] = intcid
+    blocklist_entries = MongoDBManager.get_record_by_multiple_fields(main_db, collection_name, query)
+    blocklist_entries = flatten_dicts_only(blocklist_entries)
+    # Defensive: ensure all entries are dicts
+    non_dicts = [type(e) for e in blocklist_entries if not isinstance(e, dict)]
+    if non_dicts:
+        raise Exception(f"Sanitization failed: blocklist_entries contains non-dict types: {non_dicts}")
 
-    if summary["type"] == "private":
-        blocklist_report["result"] = (
-            "error: private ip address not applicable for blocklist check"
-        )
-        blocklist_report["description"] = (
-            "IP address belongs to Private ip address range. Need not check against blocklist. It is usually a trusted internal access."
-        )
-    elif summary["type"] == "loopback":
-        blocklist_report["result"] = (
-            "error: loopback ip address not applicable for blocklist check"
-        )
-        blocklist_report["description"] = (
-            "IP address belongs to Loopback ip address range. Need not check against blocklist."
-        )
-    elif summary["type"] == "link_local":
-        blocklist_report["result"] = (
-            "error: link local ip address not applicable for blocklist check"
-        )
-        blocklist_report["description"] = (
-            "IP address belongs to Link local range. Need not check against blocklist."
-        )
+    try:
+        ip_obj = ipaddress.ip_address(ip_address)
+    except ValueError as e:
+        return {"result": False, "description": f"Invalid IP address: {str(e)}"}
 
-    # check against blocklist here
-    blocklist_report["result"] = "false"
-    blocklist_report["description"] = "Not a blocklist IP"
-    return blocklist_report
+    for entry in blocklist_entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("configType") == "ipaddress" and entry.get("value") == ip_address:
+            return {"result": True, "description": entry.get("description", "Blocklisted")}
+        elif entry.get("configType") == "iprange":
+            try:
+                start_ip, end_ip = entry.get("value", "").split("-")
+                if ipaddress.ip_address(ip_address) >= ipaddress.ip_address(start_ip.strip()) and ipaddress.ip_address(ip_address) <= ipaddress.ip_address(end_ip.strip()):
+                    return {"result": True, "description": entry.get("description", "Blocklisted range")}
+            except Exception:
+                continue
+        elif entry.get("configType") == "ipnetwork":
+            try:
+                if ipaddress.ip_address(ip_address) in ipaddress.ip_network(entry.get("value")):
+                    return {"result": True, "description": entry.get("description", "Blocklisted network")}
+            except Exception:
+                continue
+    return {"result": False, "description": "IP address is not blocklisted"}
+
+
+def flatten_dicts_only(obj):
+    """
+    Recursively flattens a nested structure, returning a flat list of only dicts.
+    Skips any non-dict, non-list entries.
+    """
+    result = []
+    if isinstance(obj, dict):
+        result.append(obj)
+    elif isinstance(obj, list):
+        for item in obj:
+            result.extend(flatten_dicts_only(item))
+    # else: skip non-dict, non-list
+    return result
