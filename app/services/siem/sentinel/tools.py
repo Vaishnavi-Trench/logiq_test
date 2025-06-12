@@ -1382,9 +1382,11 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
         # Use the potentially updated alert_str for environment selection
         env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
         system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to determine the environment (e.g., Production, Staging, Development) based on the provided alert context. The output should be a single word representing the environment."
-        env_response_str = AIManager.run_prompt(
-            PropX.get_property("module.llm.model"), env_formatted_prompt
+        
+        env_response_str = AIManager.run_prompt_with_structured_output(
+            PropX.get_property("module.llm.model"), env_formatted_prompt, sentinel_models.Environment, system_prompt 
         )
+        
 
         PromptManager.save_triage_prompt_history(
             intcid,

@@ -1,11 +1,12 @@
 from langchain_core.prompts import PromptTemplate
 import json
 
-from app.services.siem.wazuh import utils
+from pltfrm import PropX, RedisManager, PromptManager
 from pltfrm import Logger2 as Logger
 from pltfrm import AIManager
-from pltfrm import RedisManager, PromptManager, PropX
 
+from app.services.siem.wazuh import utils
+from app.services.siem.wazuh import models as wazuh_models
 
 async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
     """Retrieves context for a given Wazuh alert.
@@ -37,10 +38,11 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
             "customer_index_details": customer_index_details,
         }
     ).text
-    response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.IndexAndEnvironment
     )
-    response = json.loads(response)
+    response = response.model_dump()
+    
     Logger.debug(f"Response: {response}")
 
     index_name = response["index_name"]
@@ -65,9 +67,10 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
         }
     ).text
 
-    alert_context_response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    alert_context_response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhAlertContext
     )
+    alert_context_response = alert_context_response.model_dump()
     Logger.info(f"Query source_ip_details: {alert_context_response}")
 
     # Parse the sanitized_response as a JSON object if it's a string
@@ -199,10 +202,10 @@ async def wazuh_choose_index(
             "alert": alert,
         }
     ).text
-    response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.Environment
     )
-    response = json.loads(response)
+    response = response.model_dump()
     Logger.debug(f"Response: {response}")
     env = response["env"]
 
@@ -229,10 +232,10 @@ async def wazuh_choose_index(
         }
     ).text
 
-    response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhIndexName
     )
-    response = json.loads(response)
+    response = response.model_dump()
     Logger.debug(f"Response: {response}")
     index_name = response["index_name"]
 
@@ -284,11 +287,12 @@ async def _generate_wazuh_query_template(
         }
     ).text
 
-    query_generaton_response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    query_generaton_response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
     )
     Logger.info(f"response generated: {query_generaton_response}")
 
+    query_generaton_response = query_generaton_response.model_dump()["query_template"]
     # Step 3: Query sanitization
     _template, _version = PromptManager.get_prompt_template(
         intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
@@ -299,9 +303,11 @@ async def _generate_wazuh_query_template(
             "text_json": query_generaton_response,
         }
     ).text
-    sanitized_response = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    sanitized_response = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
     )
+    sanitized_response = sanitized_response.model_dump()
+    sanitized_response = sanitized_response["query_template"]
     Logger.info(f"Query sanitized: {sanitized_response}")
 
     # Parse the sanitized_response as a JSON object if it's a string
@@ -328,11 +334,12 @@ async def _generate_wazuh_query_template(
             }
         ).text
 
-        query_generaton_response = AIManager.run_prompt(
-            PropX.get_property("module.llm.model"), formatted_prompt
+        query_generaton_response = AIManager.run_prompt_with_structured_output(
+            PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
         )
         Logger.info(f"response generated: {query_generaton_response}")
-
+        query_generaton_response = query_generaton_response.model_dump()["query_template"]
+        Logger.info(f"Response after reflection: {query_generaton_response}")
         # Step 3: Query sanitization
         _template, _version = PromptManager.get_prompt_template(
             intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
@@ -343,9 +350,11 @@ async def _generate_wazuh_query_template(
                 "text_json": query_generaton_response,
             }
         ).text
-        sanitized_response = AIManager.run_prompt(
-            PropX.get_property("module.llm.model"), formatted_prompt
+        sanitized_response = AIManager.run_prompt_with_structured_output(
+            PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
         )
+        sanitized_response = sanitized_response.model_dump()
+        sanitized_response = sanitized_response["query_template"]
         Logger.info(f"Query sanitized: {sanitized_response}")
 
         # Parse the sanitized_response as a JSON object if it's a string
@@ -393,9 +402,10 @@ async def _replace_timerange_as_per_requirement(
             "alert": alert,
         }
     ).text
-    wazuh_query = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    wazuh_query = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
     )
+    wazuh_query = wazuh_query.model_dump()["query_template"]
     Logger.info(f"Final actualy query: {wazuh_query}")
 
     return wazuh_query
@@ -435,9 +445,10 @@ async def _generate_wazuh_query_using_template(
             "alert": alert,
         }
     ).text
-    wazuh_query = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    wazuh_query = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQuery
     )
+    wazuh_query = wazuh_query.model_dump()["query"]
     Logger.info(f"Final actualy query: {wazuh_query}")
 
     return wazuh_query

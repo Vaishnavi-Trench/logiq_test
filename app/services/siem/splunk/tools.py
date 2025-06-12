@@ -3,6 +3,7 @@
 from langchain_core.prompts import PromptTemplate
 
 from app.services.siem.splunk import utils
+from app.services.siem.splunk import models as splunk_models
 from pltfrm import Logger2 as Logger
 from pltfrm import AIManager
 from pltfrm import RedisManager, PromptManager, PropX
@@ -43,9 +44,10 @@ async def splunk_choose_index(intcid: str, requirement: str, alert: str) -> dict
         }
     ).text
 
-    index_name = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    index_name = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.IndexName
     )
+    index_name = index_name.model_dump()["index_name"]
     Logger.debug(f"Index name: {index_name}")
     RedisManager.set_key(redis_key, index_name, expiry=3600)
     Logger.debug(f"Index chosen: {index_name}")
@@ -75,10 +77,11 @@ async def _generate_splunk_query_with_steps(
             "index_and_sourcetype": index_and_sourcetype,
         }
     ).text
-    splunk_query_template = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    splunk_query_template = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQueryTemplate
     )
-    Logger.debug(f"Template generated: {splunk_query_template}")
+    splunk_query_template = splunk_query_template.model_dump()["query_template"]
+    Logger.info(f"Generated Splunk query template: {splunk_query_template}")
 
     # Step 2: Field replacement
     _template, _version = PromptManager.get_prompt_template(
@@ -88,9 +91,10 @@ async def _generate_splunk_query_with_steps(
     formatted_prompt = prompt_template.invoke(
         {"query_template": splunk_query_template, "field_mapping": field_name_list}
     ).text
-    splunk_query = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    splunk_query = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQuery
     )
+    splunk_query = splunk_query.model_dump()["query"]
     Logger.debug(f"Fields replaced: {splunk_query}")
 
     # Step 3: Query sanitization
@@ -103,9 +107,10 @@ async def _generate_splunk_query_with_steps(
             "splunk_query": splunk_query,
         }
     ).text
-    splunk_query = AIManager.run_prompt(
-        PropX.get_property("module.llm.model"), formatted_prompt
+    splunk_query = AIManager.run_prompt_with_structured_output(
+        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQuery
     )
+    splunk_query = splunk_query.model_dump()["query"]
     Logger.info(f"Query sanitized: {splunk_query}")
     if not splunk_query.strip().lower().startswith("search"):
         splunk_query = f"search {splunk_query}"
