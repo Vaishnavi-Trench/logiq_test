@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
+from enum import Enum
 from typing import Literal, Union, Dict, Any, TypedDict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 ############## sense related classes
@@ -64,10 +66,73 @@ class VerdictExplanation(BaseModel):
 
 
 ########### genix related classes
+class LogSource(str, Enum):
+    AZURE_FIREWALL = "azure_firewall"
+    AZURE_AD = "azure_ad"
+    AZURE_MONITOR = "azure_monitor"
+    AZURE_APP_INSIGHTS = "azure_app_insights"
+    AZURE_STORAGE = "azure_storage"
+    WINDOWS_EVENT_LOG = "windows_event_log"
+    LINUX_SYSLOG = "linux_syslog"
+    JUMPCLOUD = "jumpcloud"
+    CROWDSTRIKE = "crowdstrike"
+    CLOUDFLARE = "cloudflare"
+    GOOGLE_WORKSPACE = "google_workspace"
+    NIGHTFALL_DLP = "nightfall_dlp"
+    SALESFORCE = "salesforce"
+    DATADOG = "datadog"
+    CLOUDANIX = "cloudanix"
+    MICROSOFT_DEFENDER_FOR_CLOUD = "microsoft_defender_for_cloud"
+    MICROSOFT_SENTINEL = "microsoft_sentinel"
+
+
+class DeviceType(str, Enum):
+    ENDPOINT = "endpoint"
+    SERVER = "server"
+    FIREWALL = "firewall"
+    ROUTER = "router"
+    SWITCH = "switch"
+    VPN_GATEWAY = "vpn_gateway"
+    IAM_SYSTEM = "iam_system"
+    CLOUD_RESOURCE = "cloud_resource"
+    IDENTITY_PROVIDER = "identity_provider"
+    APPLICATION = "application"
+    WEB_SERVICE = "web_service"
+    MOBILE_DEVICE = "mobile_device"
+
+
+class SecurityEventCategory(str, Enum):
+    AUTHENTICATION = "authentication"
+    AUTHORIZATION = "authorization"
+    PROCESS_ACTIVITY = "process_activity"
+    FILE_ACTIVITY = "file_activity"
+    NETWORK_ACTIVITY = "network_activity"
+    MALWARE_ACTIVITY = "malware_activity"
+    CONFIGURATION_CHANGE = "configuration_change"
+    ACCOUNT_MANAGEMENT = "account_management"
+    DATA_ACCESS = "data_access"
+    CLOUD_ACTIVITY = "cloud_activity"
+    VULNERABILITY_MANAGEMENT = "vulnerability_management"
+    SYSTEM_HEALTH = "system_health"
+    COMPLIANCE = "compliance"
+    THREAT_INTELLIGENCE = "threat_intelligence"
+    DATA_LOSS_PREVENTION = "data_loss_prevention"
+    API_USAGE = "api_usage"
+
+
 class TriageQuestion(BaseModel):
     triage_question: str
-    pass_condition: str
-    severity: str
+    tags: List[str]
+
+
+class TriageTag(BaseModel):
+    log_source: LogSource
+    device_type: Optional[List[DeviceType]]
+    security_event_category: Optional[List[SecurityEventCategory]]
+
+
+class TriageScope(BaseModel):
+    tag: TriageTag
 
 
 class TriageQuestions(BaseModel):
@@ -78,20 +143,41 @@ class TriageQuestions(BaseModel):
 class ValidatedTriageQuestion(BaseModel):
     isValid: bool
     revised_triage_question: str
+    instruction_for_regeneration: str
     pass_condition: str
-    severity: str
+    importance: str
     validation_feedback: str
+
+
+class AnalyzedQuestion(BaseModel):
+    question: str = Field(description="The triage question text")
+    importance: str = Field(description="Importance level: Critical/High/Medium/Low")
+    pass_condition: str = Field(
+        description="True if 'Yes' means normal behavior, False if 'Yes' means suspicious"
+    )
+    keep: bool = Field(
+        description="Whether to keep this question (true) or discard as redundant (false)"
+    )
+    reasoning: str = Field(
+        description="Explanation for importance, pass condition, and redundancy decisions"
+    )
+
+
+class AssignImportanceAndConditions(BaseModel):
+    analyzed_questions: List[AnalyzedQuestion] = Field(
+        description="List of analyzed questions with importance, conditions, and redundancy assessment"
+    )
 
 
 class EnrichedStep(BaseModel):
     use_case: str
+    triage_conclusion_guidance: str
     agent_cot: List[str]
 
 
 class StepValidationFeedback(BaseModel):
     isValid: bool
-    question_id: str
-    validation_issues: str
+    instruction_to_regeneration: str
     validation_feedback: str
 
 
@@ -121,26 +207,6 @@ class BuildPlanValidatinFeedback(BaseModel):
     question_id: str
     validation_issues: Optional[str] = None
     validation_feedback: Optional[str] = None
-
-
-class AnalyzedQuestion(BaseModel):
-    question: str = Field(description="The triage question text")
-    importance: str = Field(description="Importance level: Critical/High/Medium/Low")
-    pass_condition: str = Field(
-        description="True if 'Yes' means normal behavior, False if 'Yes' means suspicious"
-    )
-    keep: bool = Field(
-        description="Whether to keep this question (true) or discard as redundant (false)"
-    )
-    reasoning: str = Field(
-        description="Explanation for importance, pass condition, and redundancy decisions"
-    )
-
-
-class AssignImportanceAndConditions(BaseModel):
-    analyzed_questions: List[AnalyzedQuestion] = Field(
-        description="List of analyzed questions with importance, conditions, and redundancy assessment"
-    )
 
 
 ########### Logiq related classes
