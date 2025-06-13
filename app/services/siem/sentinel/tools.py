@@ -1381,16 +1381,10 @@ async def sentinel_get_alert_context(
         )
 
         if user_name_value:
-            extracted_name = user_name_value.split("@")[0]
-            user_email = sentinel_utils.user_lookup(intcid, extracted_name)
-            if user_email:
-                alert_context["extracted_fields"]["email"] = {
-                    "description": "User name or UPN involved",
-                    "field_name": "user.email",
-                    "value": user_email,
-                    "confidence": "high",
-                }
-                alert_context["extracted_fields"]["user_name"]["value"] = extracted_name
+            username = user_name_value.split("@")[0]
+            user_email = sentinel_utils.user_lookup(intcid, username)
+            # Store both username and email as a list in the value
+            alert_context["extracted_fields"]["user_name"]["value"] = [username, user_email] if user_email else [username]
         return alert_context
 
     except Exception as e:
