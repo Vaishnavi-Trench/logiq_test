@@ -5,6 +5,12 @@ from pydantic import BaseModel, Field
 
 
 ############## sense related classes
+class FacetTagsResponse(BaseModel):
+    tags: List[str] = Field(
+        description="List of tags that are relevant to the facet template"
+    )
+
+
 class AlertNameResponse(BaseModel):
     alert_name: str  # Define the expected structured output as a string
 
@@ -33,6 +39,22 @@ class Impacted_AssetsAnalysis(BaseModel):
     emails: List[str] = Field(description="List of impacted email addresses")
 
 
+class Remediations(BaseModel):
+    """
+    Remediation model to store remediation details.
+    """
+
+    actions: list[dict[str, Any]] = Field(
+        description="List of remediation actions to be taken. Each action should include 'action' and 'priority'."
+    )
+
+
+class AlertOverview(BaseModel):
+    overview: str = Field(
+        description="A brief overview of the alert, including key details and context."
+    )
+
+
 class TriageAnswer(BaseModel):
     answer: str
     reason: str
@@ -54,9 +76,24 @@ class VerdictStep(BaseModel):
     )
 
 
+class PriorityChangedQuestion(BaseModel):
+    question: str = Field(description="The question text")
+    original_priority: str = Field(description="Original priority")
+    new_priority: str = Field(description="New (lower) priority")
+    justification: str = Field(
+        description="Reason for lowering the priority in this context"
+    )
+
+
 class Verdict(BaseModel):
-    steps: List[VerdictStep] = Field(description="List of steps")
     verdict: str = Field(description="<Malicious/Suspicious/False Alert/Inconclusive>")
+    summary: str = Field(
+        description="Summary of the all the steps taken to reach the verdict"
+    )
+    priority_changed_questions: List[PriorityChangedQuestion] = Field(
+        default_factory=list,
+        description="List of questions whose priority was changed from higher to lower due to None answers, with justification. Structure: [{ 'question': str, 'original_priority': str, 'new_priority': str, 'justification': str }, ...]",
+    )
 
 
 class VerdictExplanation(BaseModel):
