@@ -136,6 +136,7 @@ class SentinelGetSingleRecordRequest(BaseModel):
 
 class SentinelGetAlertContextRequest(BaseModel):
     task: Optional[str] = None
+    aid: str = Field(..., description="The alert ID.")
     alert: Any = Field(..., description="The Sentinel alert/event content.")
 
 
@@ -719,7 +720,8 @@ async def get_alert_context_route(
         result = await sentinel_get_alert_context(
             intcid,
             request.task,
-            request.alert,
+            request.aid,
+            request.alert
         )
         return result
     except Exception as e:
