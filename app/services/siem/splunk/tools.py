@@ -10,7 +10,9 @@ from pltfrm import RedisManager, PromptManager, PropX
 import hashlib
 
 
-async def splunk_choose_index(intcid: str, requirement: str, alert: str) -> dict:
+async def splunk_choose_index(
+    intcid: str, aid: str, requirement: str, alert: str
+) -> dict:
     """
     First tool to run while triaging a requirement.
     Fetches the correct index for the requirement.
@@ -31,23 +33,25 @@ async def splunk_choose_index(intcid: str, requirement: str, alert: str) -> dict
         )
         return {"index_name": index_name, "sourcetype": sourcetype}
 
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "SPLUNK_INDEX_SELECTION_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-
-    formatted_prompt = prompt_template.invoke(
-        {
+    index_name = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="SPLUNK_INDEX_SELECTION_PROMPT",
+        prompt_params={
             "requirement": requirement,
             "alert": alert,
             "customer_index_details": customer_index_details,
-        }
-    ).text
-
-    index_name = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.IndexName
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=splunk_models.IndexName,
+        history_params={
+            "aid": aid,
+            "subtype": "index_name",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Splunk SIEM Alerts. Your task is to determine index_name to query from given input.",
     )
-    index_name = index_name.model_dump()["index_name"]
+
+    index_name = index_name["index_name"]
     Logger.debug(f"Index name: {index_name}")
     RedisManager.set_key(redis_key, index_name, expiry=3600)
     Logger.debug(f"Index chosen: {index_name}")
@@ -59,6 +63,7 @@ async def splunk_choose_index(intcid: str, requirement: str, alert: str) -> dict
 
 async def _generate_splunk_query_with_steps(
     intcid: str,
+    aid: str,
     requirement: str,
     alert: str,
     index_and_sourcetype: dict,
@@ -66,51 +71,66 @@ async def _generate_splunk_query_with_steps(
 ) -> str:
     """Helper function to generate a Splunk query through all steps."""
     # Step 1: Generate query template
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "SPLUNK_QUERY_TEMPLATE_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+    splunk_query_template = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="SPLUNK_QUERY_TEMPLATE_PROMPT",
+        prompt_params={
             "requirement": requirement,
             "alert": alert,
             "index_and_sourcetype": index_and_sourcetype,
-        }
-    ).text
-    splunk_query_template = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQueryTemplate
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=splunk_models.SplunkQueryTemplate,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Splunk SIEM Alerts. Your task is to determine query template with placeholders for querying SPLUNK for given input.",
     )
-    splunk_query_template = splunk_query_template.model_dump()["query_template"]
+
+    splunk_query_template = splunk_query_template["query_template"]
     Logger.info(f"Generated Splunk query template: {splunk_query_template}")
 
     # Step 2: Field replacement
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "SPLUNK_FIELD_REPLACEMENT_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {"query_template": splunk_query_template, "field_mapping": field_name_list}
-    ).text
     splunk_query = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQuery
+        intcid=intcid,
+        prompt_template_name="SPLUNK_FIELD_REPLACEMENT_PROMPT",
+        prompt_params={
+            "query_template": splunk_query_template,
+            "field_mapping": field_name_list,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=splunk_models.SplunkQuery,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Splunk SIEM Alerts. Your task is to replace fields in the given query template.",
     )
-    splunk_query = splunk_query.model_dump()["query"]
+
+    splunk_query = splunk_query["query"]
     Logger.debug(f"Fields replaced: {splunk_query}")
 
     # Step 3: Query sanitization
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "SPLUNK_QUERY_SANITIZER_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
-            "splunk_query": splunk_query,
-        }
-    ).text
     splunk_query = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, splunk_models.SplunkQuery
+        intcid=intcid,
+        prompt_template_name="SPLUNK_QUERY_SANITIZER_PROMPT",
+        prompt_params={
+            "splunk_query": splunk_query,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=splunk_models.SplunkQuery,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Splunk SIEM Alerts. Your task is to determine sanitize the given query.",
     )
-    splunk_query = splunk_query.model_dump()["query"]
+
+    splunk_query = splunk_query["query"]
     Logger.info(f"Query sanitized: {splunk_query}")
     if not splunk_query.strip().lower().startswith("search"):
         splunk_query = f"search {splunk_query}"
@@ -118,7 +138,12 @@ async def _generate_splunk_query_with_steps(
 
 
 async def generate_splunk_query(
-    intcid: str, index_name: str, sourcetype: str, requirement: str, alert: str
+    intcid: str,
+    aid: str,
+    index_name: str,
+    sourcetype: str,
+    requirement: str,
+    alert: str,
 ) -> dict:
     """Second tool to run while triaging a requirement."""
     Logger.debug(
@@ -133,6 +158,7 @@ async def generate_splunk_query(
     # Generate initial query
     splunk_query_template, splunk_query = await _generate_splunk_query_with_steps(
         intcid=intcid,
+        aid=aid,
         requirement=requirement,
         alert=alert,
         index_and_sourcetype=index_and_sourcetype,
@@ -156,6 +182,7 @@ async def generate_splunk_query(
         )
         splunk_query = await _generate_splunk_query_with_steps(
             intcid=intcid,
+            aid=aid,
             requirement=requirement,
             alert=alert,
             index_and_sourcetype=index_and_sourcetype,

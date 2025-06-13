@@ -25,10 +25,8 @@ from app.services.siem.sentinel.tools import (
     fetch_sample_records,  # Added import
     sentinel_generate_kql_query_template,  # Added new import
     standalone_sentinel_prepare_kql_query,
-    # test_sentinel_generate_kql_query,  # Added new import
-    test_sentinel_choose_table,  # Added new import
     sentinel_functions,
-    get_top_matching_tables
+    get_top_matching_tables,
 )
 
 
@@ -79,6 +77,7 @@ class SentinelGetSecurityIncidentsRequest(BaseModel):
 
 class GenerateSentinelQueryRequest(BaseModel):
     task: str
+    aid: str
     step_id: str
     tid: str
     question_id: str
@@ -86,8 +85,13 @@ class GenerateSentinelQueryRequest(BaseModel):
     table_name: str
     alert_context: Dict  # Assuming alert is passed as string for this specific tool
 
+
 class PrepareSentinelQueryRequest(BaseModel):
     task: str
+    aid: str
+    question_id: str
+    step_id: str
+    tid: str
     alert_context: dict
     query_template: str
 
@@ -106,6 +110,7 @@ class SentinelRunKQLQueryRequest(BaseModel):
 
 class SentinelChooseTableRequest(BaseModel):
     task: str
+    aid: str = Field(..., description="The alert ID.")
     tid: str = Field(..., description="The triage ID.")
     question_id: str = Field(
         ..., description="The specific question ID within the triage process."
@@ -136,6 +141,7 @@ class SentinelGetAlertContextRequest(BaseModel):
 
 class GenerateSentinelQueryTemplateRequest(BaseModel):
     task: str
+    aid: str = Field(..., description="The alert ID.")
     tid: str = Field(..., description="The triage ID.")
     question_id: str = Field(
         ..., description="The specific question ID within the triage process."
@@ -479,6 +485,7 @@ async def generate_query_route(
         result = await sentinel_generate_kql_query(
             intcid,
             request_body.task,
+            request_body.aid,
             request_body.table_name,
             request_body.tid,
             request_body.question_id,
@@ -540,8 +547,12 @@ async def prepare_query_route(
         result = await standalone_sentinel_prepare_kql_query(
             intcid,
             request_body.task,
+            request_body.aid,
+            request_body.question_id,
+            request_body.step_id,
+            request_body.tid,
             request_body.alert_context,
-            request_body.query_template
+            request_body.query_template,
         )
         return result
 
@@ -628,6 +639,7 @@ async def choose_table_route(
         result = await sentinel_choose_table(
             intcid,
             request.task,
+            request.aid,
             request.tid,
             request.question_id,
             request.step_id,
@@ -795,6 +807,7 @@ async def generate_query_template_route(
     try:
         result = await sentinel_generate_kql_query_template(
             intcid,
+            request_body.aid,
             request_body.tid,
             request_body.question_id,
             request_body.step_id,
@@ -815,66 +828,6 @@ async def generate_query_template_route(
             content={
                 "error": f"Failed to generate Sentinel KQL query templates: {str(e)}"
             },
-        )
-
-
-
-
-@router.post("/test_choose_table/{intcid}")
-async def test_choose_table_route(
-    request: Request,
-    intcid: str = Path(..., description="Customer ID"),
-    request_body: TestSentinelChooseTableRequest = Body(
-        ...,
-        description="Request to test choose Sentinel tables",
-    ),
-):
-    """
-    Test choose appropriate Sentinel tables based on the alert and context.
-
-    Args:
-        intcid: Customer ID
-        request_body: Request body containing task, alert, triage question, and alert context.
-
-    Returns:
-        JSON object with chosen Sentinel tables.
-    """
-    Logger.info(
-        f"api: /siem/sentinel/test_choose_table/{intcid}: Task: {request_body.task}"
-    )
-    try:
-        raw_body = await request.body()
-        Logger.info(
-            f"REQUEST PAYLOAD for test_choose_table/{intcid}: {raw_body.decode()}"
-        )
-    except Exception as e:
-        Logger.error(f"Failed to log request payload: {str(e)}")
-
-    try:
-        Logger.info(
-            f"VALIDATED REQUEST for test_choose_table/{intcid}: {request_body.json()}"
-        )
-    except Exception as e:
-        Logger.error(f"Failed to log validated request: {str(e)}")
-
-    try:
-        result = await test_sentinel_choose_table(
-            intcid,
-            request_body.alert,
-            request_body.task,
-            request_body.triage_question,
-            request_body.alert_context,
-        )
-        return result
-
-    except Exception as e:
-        Logger.error(f"Error testing Sentinel table selection: {str(e)}")
-        Logger.error(
-            f"Error testing Sentinel table selection: {str(e)}\n{traceback.format_exc()}"
-        )
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to test Sentinel table selection: {str(e)}"},
         )
 
 
@@ -915,7 +868,9 @@ async def sentinel_functions_route(
 @router.post("/get_top_matching_tables/{intcid}")
 async def get_top_matching_tables_route(
     intcid: str = Path(..., description="Customer ID"),
-    request_body: GetTopMatchingTablesRequest = Body(..., description="Request to get top matching tables by tags"),
+    request_body: GetTopMatchingTablesRequest = Body(
+        ..., description="Request to get top matching tables by tags"
+    ),
 ):
     """
     Returns the top matching Sentinel tables for the given tags.
@@ -932,25 +887,34 @@ async def get_top_matching_tables_route(
         tags = request_body.tags
         task = request_body.task
         if not tags:
-            return JSONResponse(status_code=400, content={"error": "Missing 'tags' in request body."})
-        result =  await get_top_matching_tables(intcid, tags, task)
+            return JSONResponse(
+                status_code=400, content={"error": "Missing 'tags' in request body."}
+            )
+        result = await get_top_matching_tables(intcid, tags, task)
         return result
     except ValidationError as ve:
-        Logger.error(f"Validation error in get_top_matching_tables: {str(ve)}\n{traceback.format_exc()}")
+        Logger.error(
+            f"Validation error in get_top_matching_tables: {str(ve)}\n{traceback.format_exc()}"
+        )
         return JSONResponse(
             status_code=422,
             content={"error": f"Validation error: {str(ve)}"},
         )
     except RuntimeError as e:
-        Logger.error(f"Runtime error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
+        Logger.error(
+            f"Runtime error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}"
+        )
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to get top matching tables: {str(e)}"},
         )
     except Exception as e:
-        Logger.error(f"Unexpected error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}")
+        Logger.error(
+            f"Unexpected error in get_top_matching_tables: {str(e)}\n{traceback.format_exc()}"
+        )
         return JSONResponse(
             status_code=500,
-            content={"error": "An unexpected error occurred while getting top matching tables."},
+            content={
+                "error": "An unexpected error occurred while getting top matching tables."
+            },
         )
-

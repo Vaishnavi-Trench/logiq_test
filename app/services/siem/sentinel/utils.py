@@ -35,9 +35,7 @@ class SentinelUtils:
         self.toolsmetadata_db = PropX.get_property(
             "module.integration.metadata.collection"
         )
-        self.trenchrecords_db = PropX.get_property(
-            "module.trenchrun.collection"
-        )
+        self.trenchrecords_db = PropX.get_property("module.trenchrun.collection")
         self.templates_db = PropX.get_property("module.templates.collection")
         config = MongoDBManager.get_record_by_multiple_fields(
             self.main_db,
@@ -1265,30 +1263,38 @@ class SentinelUtils:
         return extracted_keys
 
     def get_sentinel_functions(self):
-        
+
         credential = ClientSecretCredential(
-                tenant_id=self.tenant_id,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
         )
-        log_analytics_client = LogAnalyticsManagementClient(credential, self.subscription_id)
+        log_analytics_client = LogAnalyticsManagementClient(
+            credential, self.subscription_id
+        )
         Logger.info(f"Log_AnalyticsClient: {log_analytics_client}")
         try:
-            Logger.info(f"Listing saved searches in Log Analytics workspace: {self.workspace_name}\n")
+            Logger.info(
+                f"Listing saved searches in Log Analytics workspace: {self.workspace_name}\n"
+            )
             saved_searches = log_analytics_client.saved_searches.list_by_workspace(
                 resource_group_name=self.resource_group_name,
-                workspace_name=self.workspace_name
+                workspace_name=self.workspace_name,
             )
             Logger.info(f"Saved Searches: {saved_searches}")
             kql_functions = []
             for search in saved_searches.value:
-                kql_functions.append({
-                    "name": getattr(search, "display_name", None),
-                    "alias": getattr(search, "function_alias", None),
-                    "category": getattr(search, "category", None),
-                    "query": getattr(search, "query", None),
-                })
-            Logger.info(f"All SavedSearches (with possible KQL functions): {kql_functions}")
+                kql_functions.append(
+                    {
+                        "name": getattr(search, "display_name", None),
+                        "alias": getattr(search, "function_alias", None),
+                        "category": getattr(search, "category", None),
+                        "query": getattr(search, "query", None),
+                    }
+                )
+            Logger.info(
+                f"All SavedSearches (with possible KQL functions): {kql_functions}"
+            )
             if not kql_functions:
                 Logger.info("No KQL functions found based on current criteria.")
         except Exception as e:
@@ -1296,10 +1302,8 @@ class SentinelUtils:
             return []
         return kql_functions
 
-    #Not in use
-    def get_top_matching_tables_using_tags(
-        self, intcid: str, tags: list[str]
-    ) -> dict:
+    # Not in use
+    def get_top_matching_tables_using_tags(self, intcid: str, tags: list[str]) -> dict:
         """
         Fetches the top matching Sentinel tables based on provided tags.
 
@@ -1319,11 +1323,18 @@ class SentinelUtils:
         )
 
         try:
-            
+
             # Defensive: handle MongoDBManager singleton error gracefully
             try:
                 tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
-                    self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
+                    self.main_db,
+                    self.toolsmetadata_db,
+                    {
+                        "intcid": intcid,
+                        "type": "siem",
+                        "vendor": "sentinel",
+                        "subtype": "index_list",
+                    },
                 )
             except Exception as e:
                 Logger.error(f"Error retrieving matching tables: {e}")
@@ -1357,9 +1368,15 @@ class SentinelUtils:
                 table_tags = set(table.get("tags", []))
 
                 # First priority: all tags match (log_source, any device_type, all event categories)
-                matches_log_source = (user_log_source == table_log_source)
-                matches_device_type = bool(user_device_types & table_device_type) if user_device_types else True
-                matches_event_cats = user_event_cats.issubset(table_tags) if user_event_cats else True
+                matches_log_source = user_log_source == table_log_source
+                matches_device_type = (
+                    bool(user_device_types & table_device_type)
+                    if user_device_types
+                    else True
+                )
+                matches_event_cats = (
+                    user_event_cats.issubset(table_tags) if user_event_cats else True
+                )
                 total_tag_matches = len(user_event_cats & table_tags)
 
                 if matches_log_source and matches_device_type and matches_event_cats:
@@ -1374,9 +1391,15 @@ class SentinelUtils:
                 table, tag_matches = item
                 return (tag_matches, table.get("row_count", 0))
 
-            first_priority_sorted = [t[0] for t in sorted(first_priority, key=sort_key, reverse=True)]
-            second_priority_sorted = [t[0] for t in sorted(second_priority, key=sort_key, reverse=True)]
-            third_priority_sorted = [t[0] for t in sorted(third_priority, key=sort_key, reverse=True)]
+            first_priority_sorted = [
+                t[0] for t in sorted(first_priority, key=sort_key, reverse=True)
+            ]
+            second_priority_sorted = [
+                t[0] for t in sorted(second_priority, key=sort_key, reverse=True)
+            ]
+            third_priority_sorted = [
+                t[0] for t in sorted(third_priority, key=sort_key, reverse=True)
+            ]
 
             # Combine results, remove duplicates by index name, and track priority
             seen = set()
@@ -1384,7 +1407,7 @@ class SentinelUtils:
             table_priority = {}  # Map index to priority name
             for group, priority_name in zip(
                 [first_priority_sorted, second_priority_sorted, third_priority_sorted],
-                ["first", "second", "third"]
+                ["first", "second", "third"],
             ):
                 for table in group:
                     idx = table.get("index")
@@ -1394,8 +1417,12 @@ class SentinelUtils:
                         table_priority[idx] = priority_name
 
             # Log priorities along with matching tables
-            priority_log = [f"{idx} (priority: {table_priority[idx]})" for idx in matching_tables]
-            Logger.info(f"Top matching tables for intcid: {intcid}, tags: {tags}: {priority_log}")
+            priority_log = [
+                f"{idx} (priority: {table_priority[idx]})" for idx in matching_tables
+            ]
+            Logger.info(
+                f"Top matching tables for intcid: {intcid}, tags: {tags}: {priority_log}"
+            )
             return {"matching_tables": matching_tables}
 
         except Exception as e:
@@ -1404,7 +1431,9 @@ class SentinelUtils:
             )
             return {"error": f"Error occurred: {str(e)}"}
 
-    def get_relevant_sentinel_tables(self, intcid: str, alert_tags: dict, min_score_threshold: int = 20) -> dict:
+    def get_relevant_sentinel_tables(
+        self, intcid: str, alert_tags: dict, min_score_threshold: int = 20
+    ) -> dict:
         """
         Calculates relevance scores for Sentinel tables based on alert tags using a tiered scoring system
         and returns a sorted dictionary of relevant tables, implementing the new priority.
@@ -1424,14 +1453,12 @@ class SentinelUtils:
 
         # Tiered Scoring Weights - these values define the new strict hierarchy
         TIER_SCORES = {
-            "all_three_perfect": 500,        # Highest priority (Log Source + Device Type + Security Event Category)
-            "log_source_only_base": 400,     # Second priority (Log Source matched)
-            "device_security_only": 300,     # Third priority (Device Type + Security Event Category, without Log Source match)
-
+            "all_three_perfect": 500,  # Highest priority (Log Source + Device Type + Security Event Category)
+            "log_source_only_base": 400,  # Second priority (Log Source matched)
+            "device_security_only": 300,  # Third priority (Device Type + Security Event Category, without Log Source match)
             # Micro-bonuses for within Log Source only tier, to differentiate
-            "log_source_plus_device_type_bonus": 5, # L + D (not S)
-            "log_source_plus_security_category_bonus": 10, # L + S (not D)
-
+            "log_source_plus_device_type_bonus": 5,  # L + D (not S)
+            "log_source_plus_security_category_bonus": 10,  # L + S (not D)
             # Fallback scores for single matches when no higher tier applies
             "device_type_single_fallback": 20,
             "security_category_single_fallback": 30,
@@ -1442,29 +1469,59 @@ class SentinelUtils:
         # Defensive: Handle nested alert_tags
         parsed_alert_tags = {}
         if isinstance(alert_tags, dict):
-            if 'tags' in alert_tags and isinstance(alert_tags['tags'], dict):
-                if 'tags' in alert_tags['tags'] and isinstance(alert_tags['tags']['tags'], dict):
-                    parsed_alert_tags = alert_tags['tags']['tags']
+            if "tags" in alert_tags and isinstance(alert_tags["tags"], dict):
+                if "tags" in alert_tags["tags"] and isinstance(
+                    alert_tags["tags"]["tags"], dict
+                ):
+                    parsed_alert_tags = alert_tags["tags"]["tags"]
                 else:
-                    parsed_alert_tags = alert_tags['tags']
+                    parsed_alert_tags = alert_tags["tags"]
             else:
                 parsed_alert_tags = alert_tags
         else:
-            Logger.error(f"Expected alert_tags to be dict, got {type(alert_tags)}: {alert_tags}")
+            Logger.error(
+                f"Expected alert_tags to be dict, got {type(alert_tags)}: {alert_tags}"
+            )
             return {"matching_tables": []}
 
         alert_log_source = parsed_alert_tags.get("log_source", "").lower()
         Logger.debug(f"Alert log source (normalized): {alert_log_source}")
-        alert_device_types = [dt.lower() for dt in (parsed_alert_tags.get("device_type", []) if isinstance(parsed_alert_tags.get("device_type", []), list) else [parsed_alert_tags.get("device_type", "")]) if isinstance(dt, str)]
+        alert_device_types = [
+            dt.lower()
+            for dt in (
+                parsed_alert_tags.get("device_type", [])
+                if isinstance(parsed_alert_tags.get("device_type", []), list)
+                else [parsed_alert_tags.get("device_type", "")]
+            )
+            if isinstance(dt, str)
+        ]
         Logger.debug(f"Alert device types (normalized): {alert_device_types}")
-        alert_security_event_categories = [sec.lower() for sec in (parsed_alert_tags.get("security_event_category", []) if isinstance(parsed_alert_tags.get("security_event_category", []), list) else [parsed_alert_tags.get("security_event_category", "")]) if isinstance(sec, str)]
-        Logger.debug(f"Alert security event categories (normalized): {alert_security_event_categories}")
-
+        alert_security_event_categories = [
+            sec.lower()
+            for sec in (
+                parsed_alert_tags.get("security_event_category", [])
+                if isinstance(
+                    parsed_alert_tags.get("security_event_category", []), list
+                )
+                else [parsed_alert_tags.get("security_event_category", "")]
+            )
+            if isinstance(sec, str)
+        ]
+        Logger.debug(
+            f"Alert security event categories (normalized): {alert_security_event_categories}"
+        )
 
         # Fetch table profiles from MongoDB
         try:
             tables_list_doc = MongoDBManager.get_record_by_multiple_fields(
-                self.main_db, self.toolsmetadata_db, {"intcid": intcid, "type": "siem", "vendor": "sentinel", "subtype": "index_list"}
+                self.main_db,
+                self.toolsmetadata_db,
+                {
+                    "intcid": intcid,
+                    "type": "siem",
+                    "vendor": "sentinel",
+                    "subtype": "index_list",
+                },
             )
         except Exception as e:
             Logger.error(f"Error retrieving table profiles from MongoDB: {e}")
@@ -1473,38 +1530,59 @@ class SentinelUtils:
         tables_list = tables_list_doc.get("indices", []) if tables_list_doc else []
 
         if not tables_list:
-            Logger.warning(f"No Sentinel table profiles found for intcid: {intcid}. Check MongoDB configuration.")
+            Logger.warn(
+                f"No Sentinel table profiles found for intcid: {intcid}. Check MongoDB configuration."
+            )
             return {"matching_tables": []}
 
         for table in tables_list:
             table_name = table.get("index")
             if not table_name:
-                continue # Skip if table name is missing
+                continue  # Skip if table name is missing
 
             profile_log_source = table.get("log_source", "")
             if not profile_log_source:
                 continue  # Skip tables with empty log_source
             # No .lower() needed, values are already normalized
-            Logger.debug(f"Processing table: {table_name}, profile log_source: {profile_log_source}")
+            Logger.debug(
+                f"Processing table: {table_name}, profile log_source: {profile_log_source}"
+            )
 
             device_type_val = table.get("device_type", [])
             if not device_type_val:
                 continue  # Skip tables with empty device_type
-            profile_device_types = device_type_val if isinstance(device_type_val, list) else [device_type_val]
+            profile_device_types = (
+                device_type_val
+                if isinstance(device_type_val, list)
+                else [device_type_val]
+            )
             Logger.debug(f"Device types for table {table_name}: {profile_device_types}")
 
             security_tags_val = table.get("tags", [])
             if not security_tags_val:
                 continue  # Skip tables with empty security_event_category/tags
-            profile_security_event_categories = security_tags_val if isinstance(security_tags_val, list) else [security_tags_val]
-            Logger.debug(f"Security event categories for table {table_name}: {profile_security_event_categories}")
+            profile_security_event_categories = (
+                security_tags_val
+                if isinstance(security_tags_val, list)
+                else [security_tags_val]
+            )
+            Logger.debug(
+                f"Security event categories for table {table_name}: {profile_security_event_categories}"
+            )
 
             current_score = 0
 
             # Determine match conditions using normalized values
-            log_source_matched = (alert_log_source and alert_log_source == profile_log_source)
-            device_type_overlap = bool(set(alert_device_types) & set(profile_device_types))
-            security_category_overlap = bool(set(alert_security_event_categories) & set(profile_security_event_categories))
+            log_source_matched = (
+                alert_log_source and alert_log_source == profile_log_source
+            )
+            device_type_overlap = bool(
+                set(alert_device_types) & set(profile_device_types)
+            )
+            security_category_overlap = bool(
+                set(alert_security_event_categories)
+                & set(profile_security_event_categories)
+            )
 
             # --- Apply new tiered scoring based on the strict priority ---
 
@@ -1518,7 +1596,9 @@ class SentinelUtils:
                 if device_type_overlap:
                     current_score += TIER_SCORES["log_source_plus_device_type_bonus"]
                 if security_category_overlap:
-                    current_score += TIER_SCORES["log_source_plus_security_category_bonus"]
+                    current_score += TIER_SCORES[
+                        "log_source_plus_security_category_bonus"
+                    ]
             # Priority 3: Device Type AND Security Event Type (without a Log Source match)
             elif device_type_overlap and security_category_overlap:
                 current_score = TIER_SCORES["device_security_only"]
@@ -1532,24 +1612,27 @@ class SentinelUtils:
             table_scores[table_name] = current_score
             Logger.debug(f"  --> Table '{table_name}' final score: {current_score}")
 
-
         # Filter and sort
         relevant_tables = {
-            table: score for table, score in table_scores.items()
+            table: score
+            for table, score in table_scores.items()
             if score >= min_score_threshold
         }
-        
-        sorted_relevant_tables = dict(sorted(relevant_tables.items(), key=lambda item: item[1], reverse=True))
+
+        sorted_relevant_tables = dict(
+            sorted(relevant_tables.items(), key=lambda item: item[1], reverse=True)
+        )
         selected_tables = list(sorted_relevant_tables.keys())
         if len(selected_tables) > 15:
             selected_tables = selected_tables[:15]
-        Logger.info(f"Top relevant tables for intcid: {intcid}, tags: {parsed_alert_tags}: {sorted_relevant_tables}")
+        Logger.info(
+            f"Top relevant tables for intcid: {intcid}, tags: {parsed_alert_tags}: {sorted_relevant_tables}"
+        )
 
         return {"matching_tables": selected_tables}
-    
-    
+
     def get_top_matching_tables(self, intcid: str, tid: str) -> list:
-        
+
         filter = {
             "intcid": intcid,
             "tid": tid,
@@ -1560,44 +1643,49 @@ class SentinelUtils:
             )
             if doc and "matching_tables" in doc:
                 matching_tables = doc["matching_tables"]
-                Logger.info(f"Found matching tables for intcid: {intcid}, tid: {tid}: {matching_tables}")
+                Logger.info(
+                    f"Found matching tables for intcid: {intcid}, tid: {tid}: {matching_tables}"
+                )
                 return matching_tables
             else:
-                Logger.info(f"No matching tables found for intcid: {intcid}, tid: {tid}.")
+                Logger.info(
+                    f"No matching tables found for intcid: {intcid}, tid: {tid}."
+                )
                 return []
         except Exception as e:
-            Logger.error(f"Error retrieving matching tables for intcid: {intcid}, tid: {tid}: {e}")
+            Logger.error(
+                f"Error retrieving matching tables for intcid: {intcid}, tid: {tid}: {e}"
+            )
             return []
-        
+
     def parse_indices(self, indices_data: List[Dict[str, Any]]) -> str:
-        
+
         Logger.debug(f"Parsing indices: {indices_data}")
-        
+
         if not indices_data:
             return "No SIEM indices available"
-            
+
         try:
             # Build the formatted string
             output = ["Available SIEM Indices:\n"]
-            
 
             for idx, info in enumerate(indices_data, 1):
-                index_name = info.get('index', 'Unknown Index')
-                description = info.get('desc', 'No description available')
-                
+                index_name = info.get("index", "Unknown Index")
+                description = info.get("desc", "No description available")
+
                 # Add formatted index information
                 output.append(f"{idx}. {index_name}")
                 output.append(f"   Description: {description}")
-                
+
             # Join all lines with newlines
             formatted_output = "\n".join(output)
             Logger.debug(f"Formatted indices output: {formatted_output}")
-            
+
             return formatted_output
         except Exception as e:
             Logger.error(f"Error formatting indices: {e}")
             return "Error formatting SIEM indices"
-        
+
     def user_lookup(self, intcid: str, username: str) -> str:
         """
         Looks up user information in the MongoDB collection.
@@ -1611,17 +1699,18 @@ class SentinelUtils:
         """
         Logger.info(f"Looking up user '{username}' for intcid: {intcid}")
         filter = {"intcid": intcid, "type": "siem", "subtype": "lookup_table"}
-        
-        user_lookup_collection = MongoDBManager.get_record_by_multiple_fields(self.main_db, self.toolsmetadata_db, filter)
+
+        user_lookup_collection = MongoDBManager.get_record_by_multiple_fields(
+            self.main_db, self.toolsmetadata_db, filter
+        )
         if not user_lookup_collection:
             Logger.warn(f"No user lookup collection found for intcid: {intcid}")
             return ""
         user_lookup = user_lookup_collection["user_lookup_table"]
-        
+
         if user_lookup[username]:
             user_info = user_lookup[username]
             Logger.info(f"Found user info for '{username}': {user_info}")
             return user_info
         else:
             return ""
-        

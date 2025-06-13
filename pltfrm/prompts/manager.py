@@ -26,6 +26,7 @@ class PromptManager(Singleton):
         if self.__instance is not None:
             raise Exception("This class is a singleton!")
 
+        self.module = None
         self.db = None
         self.collection = None
         self.history_collection = None
@@ -41,6 +42,14 @@ class PromptManager(Singleton):
 
     def __getattr__(self, name):
         return getattr(self.get_instance(), name)
+
+    def set_module(self, module):
+        """set module"""
+        self.module = module
+
+    def get_module(self):
+        """get module"""
+        return self.module
 
     def set_db(self, db):
         """set openai client"""
@@ -75,6 +84,7 @@ class PromptManager(Singleton):
     @staticmethod
     def initialize():
         """initialize the OpenAI client"""
+        PromptManager.get_instance().set_module(PropX.get_property("promptmgr.module"))
         PromptManager.get_instance().set_db(PropX.get_property("promptmgr.db"))
         PromptManager.get_instance().set_collection(
             PropX.get_property("promptmgr.collection")
@@ -87,11 +97,12 @@ class PromptManager(Singleton):
         )
 
     @staticmethod
-    def get_prompt_template(intcid, module, name):
+    def get_prompt_template(intcid, name, version=None, is_debug=False):
         """run a prompt"""
         prompt_template_str = ""
         prompt_version = 0
 
+        module = PromptManager.get_instance().get_module()
         Logger.info(f"Getting prompt template for name from global, name: {name}")
         prompt_template_record = MongoDBManager.get_record_by_multiple_fields(
             PromptManager.get_instance().get_db(),
@@ -125,92 +136,57 @@ class PromptManager(Singleton):
                 f"Prompt template record not found for intcid {intcid} and name {name}"
             )
 
-        # Log the final string
-        Logger.info(f"Prompt template string: {prompt_template_str}")
-
         return prompt_template_str, prompt_version
-
-    @staticmethod
-    def save_triage_prompt_history(
-        intcid,
-        module,
-        aid,
-        prompt_template_name,
-        prompt_template_version,
-        model_name,
-        system_prompt,
-        user_prompt,
-        response,
-        model_class=None,
-    ):
-        """save prompt history"""
-        Logger.info(
-            f"Saving triage prompt history for intcid {intcid}, module {module}, aid {aid}"
-        )
-        try:
-            history_record = {
-                "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
-                "intcid": intcid,
-                "module": module,
-                "aid": aid,
-                "prompt_template_name": prompt_template_name,
-                "prompt_template_version": prompt_template_version,
-                "model_name": model_name,
-                "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
-                "response": response,
-                "model_class": model_class.__name__ if model_class else None,
-                "type": "triage",
-            }
-            MongoDBManager.insert_record(
-                PromptManager.get_instance().get_db(),
-                PromptManager.get_instance().get_history_collection(),
-                history_record,
-            )
-        except Exception as e:
-            Logger.error(f"Error saving prompt history: {e}")
-            return
-
-        Logger.info("Prompt history saved successfully.")
 
     @staticmethod
     def save_prompt_history(
         intcid,
-        module,
-        tid,
-        prompt_template_name,
-        prompt_template_version,
+        template_name,
+        template_version,
         model_name,
         system_prompt,
         user_prompt,
         response,
-        model_class=None,
-        qid=None,
-        step_id=None,
-        category=None,
+        model_class,
+        history_params,
+        usage_data,
+        type=None,
     ):
-        """save prompt history"""
-        Logger.info(
-            f"Saving prompt history for intcid {intcid}, module {module}, tid {tid}"
-        )
+        module = PromptManager.get_instance().get_module()
+        Logger.info(f"Saving prompt history for intcid {intcid}")
         try:
+            if usage_data:
+                prompt_tokens = usage_data.prompt_tokens
+                completion_tokens = usage_data.completion_tokens
+                total_tokens = usage_data.total_tokens
+            else:
+                prompt_tokens = 0
+                completion_tokens = 0
+                total_tokens = 0
+
             history_record = {
                 "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
                 "intcid": intcid,
                 "module": module,
-                "tid": tid,
-                "prompt_template_name": prompt_template_name,
-                "prompt_template_version": prompt_template_version,
+                "prompt_template_name": template_name,
+                "prompt_template_version": template_version,
                 "model_name": model_name,
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
                 "response": response,
                 "model_class": model_class.__name__ if model_class else None,
-                "qid": qid,
-                "step_id": step_id,
-                "type": PromptManager.get_instance().get_history_id(),
-                "subtype": category if category else "general",
+                "type": (
+                    type if type else PromptManager.get_instance().get_history_id()
+                ),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
             }
+
+            # add all history params
+            if history_params:
+                history_record.update(history_params)
+
             MongoDBManager.insert_record(
                 PromptManager.get_instance().get_db(),
                 PromptManager.get_instance().get_history_collection(),

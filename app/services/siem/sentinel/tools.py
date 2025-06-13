@@ -1,6 +1,6 @@
-import requests
 import json
 import traceback
+import requests
 from langchain_core.prompts import PromptTemplate
 
 # Import platform components
@@ -18,14 +18,13 @@ from app.services.siem.sentinel import models as sentinel_models
 from app.services.siem.sentinel.utils import (
     SentinelUtils,
     DEFAULT_QUERY_TIME_RANGE,
-    MAX_KQL_GENERATION_ATTEMPTS,
 )
-
 
 
 async def sentinel_choose_table(
     intcid: str,
     task: str,
+    aid: str,
     tid: str,
     question_id: str,
     step_id: str,
@@ -51,7 +50,7 @@ async def sentinel_choose_table(
         Example error: {'error': 'No suitable Sentinel tables found.'}
     """
     Logger.info(
-        f"tool:sentinel_choose_table: Starting for {intcid}, TID: {tid}, QID: {question_id}"
+        f"tool:sentinel_choose_table: Starting for {intcid}, AID: {aid}, TID: {tid}, QID: {question_id}"
     )
 
     sentinel_utils = SentinelUtils(intcid=intcid)
@@ -77,42 +76,22 @@ async def sentinel_choose_table(
     # --- Determine Environment ---
     env = None
     try:
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
-        )
-        env_prompt_template = PromptTemplate.from_template(_template)
-        env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
-        system_prompt = "You are an helpful Security Operation Center assistant who strictly follows the context given and return the results as stated"
         env_response = AIManager.run_prompt_with_structured_output(
-            model_name,
-            env_formatted_prompt,
-            sentinel_models.Environment,
-            system_prompt=system_prompt,
-        )
-
-        if env_response is None:
-            return {"error": "Failed to parse AI response for environment selection."}
-
-        Logger.debug(f"AI response for environment selection: {env_response}")
-
-        env_response = env_response.model_dump()
-
-        PromptManager.save_prompt_history(
-            intcid,
-            "logiq",
-            tid,
-            "SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-            _version,
-            model_name,
-            system_prompt,
-            env_formatted_prompt,
-            env_response,
+            intcid=intcid,
+            prompt_template_name="SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
+            prompt_params={"alert": alert_str},
+            model_name=model_name,
             model_class=sentinel_models.Environment,
-            qid=question_id,
-            step_id=step_id,
-            category="environment_selection",
+            history_params={
+                "aid": aid,
+                "tid": tid,
+                "qid": question_id,
+                "step_id": step_id,
+                "subtype": "environment_selection",
+            },
+            type="triage",
         )
-
+        Logger.debug(f"AI response for environment selection: {env_response}")
         env = env_response.get("env", "unknown").lower()
 
         if not env:
@@ -132,7 +111,7 @@ async def sentinel_choose_table(
     )
     if table_metadata is not None:
         customer_tables_with_schema = table_metadata.get("indices")
-        
+
     else:
         # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
         # if "error" in table_schema:
@@ -159,57 +138,52 @@ async def sentinel_choose_table(
             Logger.info(
                 f"Top matching tables for {intcid} and TID {tid}: {tables_list}"
             )
-            table_name_to_desc = {entry["index"]: entry["desc"] for entry in customer_tables_with_schema}
+            table_name_to_desc = {
+                entry["index"]: entry["desc"] for entry in customer_tables_with_schema
+            }
             tables_name_and_description_list = [
                 {"index": table, "desc": table_name_to_desc.get(table, "")}
                 for table in tables_list
             ]
-            tables_name_and_description = sentinel_utils.parse_indices(tables_name_and_description_list)
-            _template, _version = PromptManager.get_prompt_template(
-                intcid, "genix", "KQL_QUERY_TABLE_SELECTION_PROMPT"
+            tables_name_and_description = sentinel_utils.parse_indices(
+                tables_name_and_description_list
             )
-            prompt_template = PromptTemplate.from_template(_template)
 
-            prompt = prompt_template.invoke(
-                {"alert":alert_str, "requirement": task, "triage_question": triage_question,"alert_context": alert_str, "tables_list": tables_name_and_description}
-            ).text
-            system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response."
-            
-            
-            response = AIManager.run_prompt_with_structured_output(
-                model_name, prompt, sentinel_models.TableName
-            )
-            Logger.debug(f"AI response for table selection: {response}")
-            response_data = response.model_dump()
-            table_name = response_data.get("table_name")
-            Logger.info(f"Table Names: {table_name}")
-            PromptManager.save_prompt_history(
-                intcid,
-                "logiq",
-                tid,
-                "KQL_QUERY_TABLE_SELECTION_PROMPT",
-                _version,
-                model_name,
-                system_prompt,
-                prompt,
-                response_data,
+            response_data = AIManager.run_prompt_with_structured_output(
+                intcid=intcid,
+                prompt_template_name="KQL_QUERY_TABLE_SELECTION_PROMPT",
+                prompt_params={
+                    "alert": alert_str,
+                    "requirement": task,
+                    "triage_question": triage_question,
+                    "alert_context": alert_str,
+                    "tables_list": tables_name_and_description,
+                },
+                model_name=model_name,
                 model_class=sentinel_models.TableName,
-                qid=question_id,
-                step_id=step_id,
-                category="table_selection",
+                history_params={
+                    "aid": aid,
+                    "tid": tid,
+                    "qid": question_id,
+                    "step_id": step_id,
+                    "subtype": "table_selection",
+                },
+                type="triage",
+                system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to select the most appropriate table for the given requirement based on the available tables and their schemas. Provide only the table name in your response.",
             )
 
+            Logger.debug(f"AI response for table selection: {response_data}")
             if response_data is None:
                 Logger.error("Failed to parse AI response during table selection.")
                 return {"error": "Failed to parse AI response during table selection."}
 
-
+            table_name = response_data.get("table_name")
             Logger.debug(
                 f"AI selected table name: {table_name}, available tables: {customer_tables_with_schema}"
             )
             if not table_name:
                 Logger.error(
-                    f"AI selected an invalid or unavailable table: '{table_name}'. Response: {response}"
+                    f"AI selected an invalid or unavailable table: '{table_name}'. Response: {response_data}"
                 )
                 return {
                     "error": f"AI failed to select a valid table. Selection: '{table_name}'"
@@ -240,47 +214,6 @@ async def sentinel_choose_table(
                 "error": f"An unexpected error occurred during table name selection: {e}"
             }
     return {"table_name": table_name, "env": env}
-
-
-async def test_sentinel_choose_table(
-    intcid: str, alert: str, task: str, triage_question: str, alert_context: dict
-) -> dict:
-    sentinel_utils = SentinelUtils(intcid=intcid)
-    if not sentinel_utils.authenticate():
-        return {"error": "Authentication failed. Check configuration and credentials."}
-
-    workspace_id = sentinel_utils.get_workspace_id()
-    if not workspace_id:
-        return {"error": "Failed to retrieve Workspace ID. Check configuration."}
-
-    table_list = sentinel_utils.get_table_list(intcid)
-    if not table_list:
-        return {"error": "Failed to retrieve table list."}
-
-    template, prompt_version = PromptManager.get_prompt_template(
-        intcid, "genix", "KQL_QUERY_TABLE_SELECTION_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(template)
-
-    prompt = prompt_template.invoke(
-        {
-            "alert": alert,
-            "requirement": task,
-            "triage_question": triage_question,
-            "tables_list": table_list,
-            "alert_context": alert_context,
-        }
-    ).text
-    response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"),
-        prompt,
-        sentinel_models.TableSelectionOutput,
-    )
-    Logger.info(f"Response: {response}")
-    response = response.model_dump()
-    table_names = response.get("table_names")
-    Logger.info(f"Table Names: {table_names}")
-    return {"chosen_tables": table_names}
 
 
 async def get_detection_rules(intcid: str, task: str) -> dict:
@@ -709,6 +642,7 @@ async def fetch_security_incidents(
 async def sentinel_generate_kql_query(
     intcid: str,
     task: str,
+    aid: str,
     table_name: str,
     tid: str,
     question_id: str,
@@ -738,7 +672,7 @@ async def sentinel_generate_kql_query(
         Example error: {'error': 'Failed to generate valid KQL...'}
     """
     Logger.info(
-        f"tool:sentinel_generate_kql_query: Starting for {intcid}, Table: {table_name}, Task: {task}"
+        f"tool:sentinel_generate_kql_query: Starting for {intcid}, aid: {aid}, Table: {table_name}, Task: {task}"
     )
 
     sentinel_utils = SentinelUtils(intcid=intcid)
@@ -753,7 +687,9 @@ async def sentinel_generate_kql_query(
 
     if not schema or len(schema) < 0:
         schema_query = f"{table_name} | getschema"
-        schema = await sentinel_run_kql_query(intcid, "Get schema for table", schema_query)
+        schema = await sentinel_run_kql_query(
+            intcid, "Get schema for table", schema_query
+        )
         schema = schema.get("query_results")
         if not schema or len(schema) < 0:
             Logger.error(
@@ -771,6 +707,7 @@ async def sentinel_generate_kql_query(
         try:
             query_template_resp = await sentinel_generate_kql_query_template(
                 intcid=intcid,
+                aid=aid,
                 tid=tid,
                 question_id=question_id,
                 step_id=step_id,
@@ -781,7 +718,9 @@ async def sentinel_generate_kql_query(
             )
             if "error" in query_template_resp:
                 last_error_msg = query_template_resp["error"]
-                Logger.warn(f"Attempt {attempt+1}: Failed to generate query template: {last_error_msg}")
+                Logger.warn(
+                    f"Attempt {attempt+1}: Failed to generate query template: {last_error_msg}"
+                )
                 continue
             query_template = query_template_resp.get("query_templates")[0]
             Logger.info(f"Query Template: {query_template}")
@@ -789,6 +728,7 @@ async def sentinel_generate_kql_query(
             final_kql_query_resp = await sentinel_prepare_kql_query(
                 intcid=intcid,
                 task=task,
+                aid=aid,
                 table_name=table_name,
                 tid=tid,
                 question_id=question_id,
@@ -799,14 +739,14 @@ async def sentinel_generate_kql_query(
             )
             if "error" in final_kql_query_resp:
                 last_error_msg = final_kql_query_resp["error"]
-                Logger.warn(f"Attempt {attempt+1}: Failed to prepare final query: {last_error_msg}")
+                Logger.warn(
+                    f"Attempt {attempt+1}: Failed to prepare final query: {last_error_msg}"
+                )
                 continue
             final_kql_query = final_kql_query_resp.get("queries")[0]
             Logger.info(f"Final KQL Query: {final_kql_query}")
 
-            isValid, msg = sentinel_utils.validate_sentinel_kql(
-                final_kql_query, intcid
-            )
+            isValid, msg = sentinel_utils.validate_sentinel_kql(final_kql_query, intcid)
             if isValid:
                 # --- Persistence Hook ---
                 if query_template and final_kql_query:
@@ -825,20 +765,26 @@ async def sentinel_generate_kql_query(
                             final_query=final_kql_query,
                         )
                     except Exception as persist_e:
-                        Logger.warn(f"Failed to persist KQL template/query: {persist_e}")
+                        Logger.warn(
+                            f"Failed to persist KQL template/query: {persist_e}"
+                        )
 
-                Logger.info(f"Successfully generated and validated KQL query for task: {task}")
+                Logger.info(
+                    f"Successfully generated and validated KQL query for task: {task}"
+                )
                 Logger.debug(f"Final KQL query: {final_kql_query}")
-                #Sanitize KQL query
-                final_kql_query = final_kql_query.replace('\\n', '\n')
+                # Sanitize KQL query
+                final_kql_query = final_kql_query.replace("\\n", "\n")
                 # Add limit 10 to the final KQL query if not already present
                 if "| limit" not in final_kql_query.lower():
                     final_kql_query = f"{final_kql_query.strip()}\n| limit 10"
-                
+
                 return {"query": final_kql_query}
             else:
                 last_error_msg = msg
-                Logger.warn(f"Attempt {attempt+1}: Generated KQL failed validation: {msg}")
+                Logger.warn(
+                    f"Attempt {attempt+1}: Generated KQL failed validation: {msg}"
+                )
         except Exception as e:
             last_error_msg = str(e)
             Logger.error(f"Attempt {attempt+1}: Exception during query generation: {e}")
@@ -849,10 +795,12 @@ async def sentinel_generate_kql_query(
     return {
         "error": f"Failed to generate valid KQL after {max_retries} attempts. Last error: {last_error_msg}"
     }
-    
+
+
 async def sentinel_prepare_kql_query(
     intcid: str,
     task: str,
+    aid: str,
     table_name: str,
     tid: str,
     question_id: str,
@@ -869,18 +817,14 @@ async def sentinel_prepare_kql_query(
     for query_template in query_templates:
         Logger.info(f"Query Template: {query_template}")
         sentinel_utils = SentinelUtils(intcid=intcid)
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "genix", "KQL_FIELD_VALUE_REPLACEMENT_PROMPT"
-        )
-        
+
         fields_list = sentinel_utils.extract_field_placeholders(query_template)
         fields_metadata = sentinel_utils.get_table_metadata(intcid, table_name)
         field_values_list = []
         for field in fields_list:
             # Find the metadata dict for this field
             field_meta = next(
-                (f for f in fields_metadata if f.get("field") == field), 
-                None
+                (f for f in fields_metadata if f.get("field") == field), None
             )
             if field_meta:
                 field_value_dict = {
@@ -896,39 +840,44 @@ async def sentinel_prepare_kql_query(
                     "field_values": [],
                 }
             field_values_list.append(field_value_dict)
-        
-        replacement_prompt_template = PromptTemplate.from_template(_template)
-        replacement_formatted_prompt = replacement_prompt_template.invoke(
-            {
+
+        query = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="KQL_FIELD_VALUE_REPLACEMENT_PROMPT",
+            prompt_params={
                 "requirement": task,
                 "query_template": query_template,
                 "alert": alert_context,
                 "field_values_list": field_values_list,
-            }
-        ).text
-
-        AIManager.token_calculator(
-            PropX.get_property("module.llm.model"),
-            "KQL_FIELD_VALUE_REPLACEMENT_PROMPT",
-            replacement_formatted_prompt,
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=sentinel_models.FinalQuery,
+            history_params={
+                "aid": aid,
+                "tid": tid,
+                "qid": question_id,
+                "step_id": step_id,
+                "subtype": "prepare_query",
+            },
+            type="triage",
+            system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to replace field placeholders in the provided KQL query template with actual values based on the alert context. The output should be a valid KQL query that can be executed against the specified table.",
         )
 
-        query = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"),
-            replacement_formatted_prompt,
-            sentinel_models.FinalQuery,
-        )
-        query = query.model_dump()
         query = query.get("final_query")
         queries.append(query)
         Logger.info(f"Query: {query}")
     return {"queries": queries}
 
+
 async def standalone_sentinel_prepare_kql_query(
     intcid: str,
     task: str,
+    aid: str,
+    question_id: str,
+    step_id: str,
+    tid: str,
     alert_context: dict,
-    query_template: str
+    query_template: str,
 ):
     """Prepares a KQL query by replacing field placeholders with actual values.
 
@@ -944,8 +893,10 @@ async def standalone_sentinel_prepare_kql_query(
         Example success: {'query': 'SecurityEvent | where ...'}
         Example error: {'error': 'Failed to prepare KQL query.'}
     """
-    Logger.info(f"tool:standalone_sentinel_prepare_kql_query: Starting for {intcid}, Task: {task}")
-    
+    Logger.info(
+        f"tool:standalone_sentinel_prepare_kql_query: Starting for {intcid}, Task: {task}"
+    )
+
     sentinel_utils = SentinelUtils(intcid=intcid)
     if not sentinel_utils.authenticate():
         return {"error": "Authentication failed. Check configuration and credentials."}
@@ -954,33 +905,27 @@ async def standalone_sentinel_prepare_kql_query(
     if not workspace_id:
         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
-    
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT"
-    )
-    
-    replacement_prompt_template = PromptTemplate.from_template(_template)
-    replacement_formatted_prompt = replacement_prompt_template.invoke(
-        {
+    query = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT",
+        prompt_params={
             "requirement": task,
             "query_template": query_template,
             "alert": alert_context,
-        }
-    ).text
-
-    AIManager.token_calculator(
-        PropX.get_property("module.llm.model"),
-        "KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT",
-        replacement_formatted_prompt,
-    )
-
-    query = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"),
-        replacement_formatted_prompt,
-        sentinel_models.FinalQuery,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=sentinel_models.FinalQuery,
+        history_params={
+            "aid": aid,
+            "tid": tid,
+            "qid": question_id,
+            "step_id": step_id,
+            "subtype": "prepare_query",
+        },
+        type="triage",
         system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to replace field placeholders in the provided KQL query template with actual values based on the alert context. The output should be a valid KQL query that can be executed against the specified table.",
     )
-    query = query.model_dump()
+
     query = query.get("final_query")
     if not query:
         return {"error": "Failed to prepare KQL query. No final query generated."}
@@ -988,17 +933,17 @@ async def standalone_sentinel_prepare_kql_query(
     isValid, msg = sentinel_utils.validate_sentinel_kql(query, intcid)
     if not isValid:
         return {"error": f"Prepared KQL query is invalid: {msg}"}
-    #Sanitize KQL query
-    query = query.replace('\\n', '\n')
+    # Sanitize KQL query
+    query = query.replace("\\n", "\n")
     # Add limit 10 to the final KQL query if not already present
     if "| limit" not in query.lower():
         query = f"{query.strip()}\n| limit 10"
     return {"query": query}
-         
 
 
 async def sentinel_generate_kql_query_template(
     intcid: str,
+    aid: str,
     tid: str,
     question_id: str,
     step_id: str,
@@ -1032,24 +977,26 @@ async def sentinel_generate_kql_query_template(
 
     try:
         _query_template = sentinel_utils.get_kql_template_data_from_mongo(
-            intcid=intcid, env=alert_context["env"], tid=tid, question_id=question_id, step_id=step_id
+            intcid=intcid,
+            env=alert_context["env"],
+            tid=tid,
+            question_id=question_id,
+            step_id=step_id,
         )
 
         if _query_template and _query_template != "":
-            Logger.info(
-                f"Using cached KQL template for {intcid}, table: {tables}"
-            )
+            Logger.info(f"Using cached KQL template for {intcid}, table: {tables}")
             return {"query_templates": [_query_template]}
     except Exception as e:
         Logger.error(f"Error getting KQL template from MongoDB: {e}")
         pass
-        
-    
-    
+
     query_templates = []
     for table in tables:
         schema_query = f"{table} | getschema"
-        schema = await sentinel_run_kql_query(intcid, "Get schema for table", schema_query)
+        schema = await sentinel_run_kql_query(
+            intcid, "Get schema for table", schema_query
+        )
         schema = schema.get("query_results")
         if not schema or len(schema) < 0:
             Logger.error(
@@ -1059,12 +1006,11 @@ async def sentinel_generate_kql_query_template(
 
         sample_records = await fetch_sample_records(intcid, table)
         Logger.info(f"Fetched {len(sample_records)} sample records for {table}")
-        query_template_prompt, prompt_version = PromptManager.get_prompt_template(
-            intcid, "genix", "KQL_QUERY_TEMPLATE_PROMPT"
-        )
-        prompt_template = PromptTemplate.from_template(query_template_prompt)
-        prompt = prompt_template.invoke(
-            {
+
+        query_template = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="KQL_QUERY_TEMPLATE_PROMPT",
+            prompt_params={
                 "requirement": task,
                 "triage_question": triage_question,
                 "alert": alert_context,
@@ -1072,36 +1018,18 @@ async def sentinel_generate_kql_query_template(
                 "schema": schema,
                 "sample_records": sample_records,
                 "env": alert_context["env"],
-            }
-        ).text
-
-        AIManager.token_calculator(
-            PropX.get_property("module.llm.model"), "KQL_QUERY_TEMPLATE_PROMPT", prompt
-        )
-
-        system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to generate a KQL query template based on the provided requirement, alert context, table name, and schema. The output should be a valid KQL query template that can be used to fetch relevant data from the specified table."
-        query_template = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"),
-            prompt,
-            sentinel_models.QueryTemplateOutput,
-            system_prompt=system_prompt,
-        )
-        query_template = query_template.model_dump()
-
-        PromptManager.save_prompt_history(
-            intcid,
-            "logiq",
-            tid,
-            "KQL_QUERY_TEMPLATE_PROMPT",
-            prompt_version,
-            PropX.get_property("module.llm.model"),
-            system_prompt,
-            prompt,
-            query_template,
+            },
+            model_name=PropX.get_property("module.llm.model"),
             model_class=sentinel_models.QueryTemplateOutput,
-            qid=question_id,
-            step_id=step_id,
-            category="query",
+            history_params={
+                "aid": aid,
+                "tid": tid,
+                "qid": question_id,
+                "step_id": step_id,
+                "subtype": "query",
+            },
+            type="triage",
+            system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to generate a KQL query template based on the provided requirement, alert context, table name, and schema. The output should be a valid KQL query template that can be used to fetch relevant data from the specified table.",
         )
 
         query_template = query_template.get("query_template")
@@ -1148,7 +1076,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     query_payload = json.dumps({"query": kql_query})
 
     all_records = []
-   
+
     try:
         query_response = requests.post(
             query_url, headers=la_headers, data=query_payload, timeout=60
@@ -1193,7 +1121,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
                 "message", http_err.response.text
             )
             Logger.error(f"Query Error Details: {error_content}")
-            
+
         except ValueError:
             error_details = http_err.response.text
             Logger.error(f"Query Error Details (non-JSON): {error_details}")
@@ -1212,7 +1140,7 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
     Logger.info(
         f"Finished executing KQL query for task: {task}. Found {len(all_records)} records."
     )
-        
+
     return {"query_results": all_records}
 
 
@@ -1277,7 +1205,9 @@ async def sentinel_get_single_matching_record(
     }
 
 
-async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict:
+async def sentinel_get_alert_context(
+    intcid: str, task: str, aid: str, alert: any
+) -> dict:
     """Retrieves context for a given Sentinel alert/event using AI.
 
     If the input is a SecurityIncident, it attempts to fetch the underlying
@@ -1375,47 +1305,27 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
     # --- Step 1: Determine Environment ---
     env = None
     try:
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "SENTINEL_ENVIRONMENT_SELECTION_PROMPT"
-        )
-        env_prompt_template = PromptTemplate.from_template(_template)
-        # Use the potentially updated alert_str for environment selection
-        env_formatted_prompt = env_prompt_template.invoke({"alert": alert_str}).text
         system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to determine the environment (e.g., Production, Staging, Development) based on the provided alert context. The output should be a single word representing the environment."
-        
-        env_response_str = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"), env_formatted_prompt, sentinel_models.Environment, system_prompt 
-        )
-        
 
-        PromptManager.save_triage_prompt_history(
-            intcid,
-            "logiq",
-            alert_dict.get("aid", ""),  # we need to change this to get aid from caller
-            "SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-            _version,
-            PropX.get_property("module.llm.model"),
-            system_prompt,
-            env_formatted_prompt,
-            env_response_str,
+        env_response = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
+            prompt_params={"alert": alert_str},
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=sentinel_models.Environment,
+            history_params={
+                "aid": aid,
+                "subtype": "alert_context",
+            },
+            type="triage",
+            system_prompt="You are an expert in understanding Microsoft Sentinel Alerts. Your task is to detemine envinronment based on the provided alert.",
         )
+        Logger.debug(f"AI response for environment selection: {env_response}")
+        env = env_response.get("env", "unknown").lower()
 
-        env_response = sentinel_utils.sanitize_json_response(
-            env_response_str, context="Context extraction - Environment selection"
-        )
-        Logger.debug(f"Response for environment selection: {env_response_str}")
-        if env_response is None:
-            return {
-                "error": "Failed to parse AI response for environment selection (context extraction)."
-            }
-
-        env = env_response.get("env").lower()
         if not env:
-            Logger.warn(
-                f"Could not determine environment from AI response: {env_response_str}"
-            )
-            # Allow proceeding without env, context extraction might still work
-            env = "unknown"
+            Logger.warn(f"Could not determine environment from AI response: {env}")
+            return {"error": "Failed to determine environment."}
         Logger.info(f"Determined environment: {env}")
     except Exception as e:
         Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
@@ -1438,67 +1348,48 @@ async def sentinel_get_alert_context(intcid: str, task: str, alert: any) -> dict
     else:
         Logger.warn("Target table name could not be determined. Cannot fetch schema.")
 
-
     try:
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "TEST_ALERT_CONTEXT_EXTRACTION_PROMPT"
-        )
-        context_prompt_template = PromptTemplate.from_template(_template)
-        context_formatted_prompt = context_prompt_template.invoke(
-            {
+        alert_context = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="TEST_ALERT_CONTEXT_EXTRACTION_PROMPT",
+            prompt_params={
                 "alert": alert_str,  # This now contains either the original alert/incident or the list of fetched alerts
                 "env": env,
                 "requirement": task,
                 "table_name": target_table_name
                 or "Unknown",  # Pass the determined table name
                 "table_schema_details": schema_str,
-            }
-        ).text
-        Logger.debug(
-            f"Formatted prompt for Sentinel context extraction: {context_formatted_prompt}"
-        )
-
-        system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to extract relevant context from the provided alert data. The output should be a structured dictionary containing key information about the alert, including environment, alert type, and any other relevant fields. Ensure the output is well-structured and includes all necessary details for further analysis."
-        context_response = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"),
-            context_formatted_prompt,
-            sentinel_models.AlertContextResponse,
-            system_prompt=system_prompt,
-        )
-        Logger.info(f"AI response for context extraction: {context_response}")
-
-        alert_context = context_response.model_dump()
-
-        PromptManager.save_triage_prompt_history(
-            intcid,
-            "logiq",
-            alert_dict.get("aid", ""),  # we need to change this to get aid from caller
-            "TEST_ALERT_CONTEXT_EXTRACTION_PROMPT",
-            _version,
-            PropX.get_property("module.llm.model"),
-            system_prompt,
-            context_formatted_prompt,
-            alert_context,
+            },
+            model_name=PropX.get_property("module.llm.model"),
             model_class=sentinel_models.AlertContextResponse,
+            history_params={
+                "aid": aid,
+                "subtype": "alert_context",
+            },
+            type="triage",
+            system_prompt="You are an expert in understanding Microsoft Sentinel Alerts. Your task is to extract context parameters from given input which included received alert.",
         )
 
+        Logger.info(f"AI response for context extraction: {alert_context}")
         alert_context = transform_alert_context(alert_context)
         alert_context["env"] = env  # Ensure env is included
         alert_context["alert_type"] = original_alert_type
         Logger.info(f"Successfully extracted alert context for task: {task}")
-        
-        user_name_value = alert_context.get("extracted_fields", {}).get("user_name", {}).get("value")
+
+        user_name_value = (
+            alert_context.get("extracted_fields", {}).get("user_name", {}).get("value")
+        )
 
         if user_name_value:
-            extracted_name = user_name_value.split('@')[0]
+            extracted_name = user_name_value.split("@")[0]
             user_email = sentinel_utils.user_lookup(intcid, extracted_name)
             if user_email:
                 alert_context["extracted_fields"]["email"] = {
                     "description": "User name or UPN involved",
-                    "field_name": "user.email", 
+                    "field_name": "user.email",
                     "value": user_email,
-                    "confidence": "high"
-                 }
+                    "confidence": "high",
+                }
                 alert_context["extracted_fields"]["user_name"]["value"] = extracted_name
         return alert_context
 
@@ -1597,6 +1488,7 @@ async def fetch_sample_records(intcid: str, table_name: str, limit: int = 3) -> 
     Logger.info(f"Successfully fetched sample records from table: {table_name}")
     return {"sample_records": result.get("matching_records", [])}
 
+
 async def sentinel_functions(intcid: str, task: str) -> dict:
     """Retrieves KQL functions from Sentinel's Log Analytics workspace.
 
@@ -1628,7 +1520,8 @@ async def sentinel_functions(intcid: str, task: str) -> dict:
     except Exception as e:
         Logger.error(f"Error retrieving KQL functions: {e}")
         return {"error": f"An error occurred while retrieving KQL functions: {e}"}
-    
+
+
 async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
     """Retrieves the top matching tables based on provided tags.
 
@@ -1650,7 +1543,9 @@ async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
         # matching_tables = sentinel_utils.get_top_matching_tables_using_tags(intcid, tags)
         matching_tables = sentinel_utils.get_relevant_sentinel_tables(intcid, tags)
         if "error" in matching_tables:
-            Logger.error(f"Error retrieving matching tables: {matching_tables['error']}")
+            Logger.error(
+                f"Error retrieving matching tables: {matching_tables['error']}"
+            )
             Logger.info("No matching tables found for the provided tags.")
             return {"tables": []}
         matching_tables = matching_tables.get("matching_tables")
@@ -1660,6 +1555,3 @@ async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
     except Exception as e:
         Logger.error(f"Error retrieving matching tables: {e}")
         return {"error": f"An error occurred while retrieving matching tables: {e}"}
-
-
-

@@ -30,6 +30,7 @@ def test_sentinel_generate_kql_query(intcid, payload):
     # Check for potentially missing fields in the payload
     required_fields = [
         "task",
+        "aid",
         "tid",
         "question_id",
         "triage_question",

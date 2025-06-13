@@ -30,6 +30,7 @@ class WazuhGetAvailableFieldsRequest(BaseModel):
 
 class WazuhGetAlertContextRequest(BaseModel):
     task: str
+    aid: str
     alert: str
 
 
@@ -41,6 +42,7 @@ class WazuhGetSingleMatchingRecordRequest(BaseModel):
 
 class WazuhChooseIndexRequest(BaseModel):
     task: str
+    aid: str
     tid: str
     question_id: str
     triage_question: str
@@ -49,6 +51,7 @@ class WazuhChooseIndexRequest(BaseModel):
 
 class GenerateWazuhQueryRequest(BaseModel):
     task: str
+    aid: str
     tid: str
     question_id: str
     triage_question: str
@@ -88,7 +91,9 @@ async def get_alert_context_route(
         f"api: /siem/wazuh/get_alert_context/{intcid}: {request.task}, {request.alert}"
     )
     try:
-        result = await wazuh_get_alert_context(intcid, request.task, request.alert)
+        result = await wazuh_get_alert_context(
+            intcid, request.aid, request.task, request.alert
+        )
         return result
     except Exception as e:
         Logger.error(f"Error in wazuh_get_alert_context: {str(e)}")
@@ -221,11 +226,12 @@ async def wazuh_choose_index_route(
         JSON object with Wazuh Opensearch index name
     """
     Logger.info(
-        f"api: /siem/wazuh/wazuh_choose_index/{intcid}: {request.task}, {request.tid}, {request.question_id}, {request.triage_question}, {request.alert}"
+        f"api: /siem/wazuh/wazuh_choose_index/{intcid}: {request.task}, {request.aid}, {request.tid}, {request.question_id}, {request.triage_question}, {request.alert}"
     )
     try:
         result = await wazuh_choose_index(
             intcid,
+            request.aid,
             request.tid,
             request.question_id,
             request.triage_question,
@@ -265,6 +271,7 @@ async def wazuh_generate_query_route(
         result = await wazuh_generate_query(
             intcid,
             request.task,
+            request.aid,
             request.index_name,
             request.tid,
             request.question_id,

@@ -8,7 +8,8 @@ from pltfrm import AIManager
 from app.services.siem.wazuh import utils
 from app.services.siem.wazuh import models as wazuh_models
 
-async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
+
+async def wazuh_get_alert_context(intcid: str, aid: str, task: str, alert: str) -> dict:
     """Retrieves context for a given Wazuh alert.
 
     Uses AI to determine the relevant index and environment, fetches field metadata
@@ -28,23 +29,23 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
     Logger.info(f"tool:wazuh_get_source_ip_for_alert: {intcid}, {task}")
 
     customer_index_details = utils.get_indices_with_metadata(intcid)
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_INDEX_NAME_AND_ENVIRONMENT_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+    response = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="WAZUH_INDEX_NAME_AND_ENVIRONMENT_PROMPT",
+        prompt_params={
             "alert": alert,
             "customer_index_details": customer_index_details,
-        }
-    ).text
-    response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.IndexAndEnvironment
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.IndexAndEnvironment,
+        history_params={
+            "aid": aid,
+            "subtype": "index_name_and_environment",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Wazuh SIEM Alerts. Your task is to determine index name and environment of the given alert.",
     )
-    response = response.model_dump()
-    
     Logger.debug(f"Response: {response}")
-
     index_name = response["index_name"]
     env = response["env"]
 
@@ -52,25 +53,27 @@ async def wazuh_get_alert_context(intcid: str, task: str, alert: str) -> dict:
     matching_records = utils.get_matching_records(
         intcid, index_name, '{"query":{"bool":{"must":[{"match_all":{}}]}}}'
     )
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "ALERT_CONTEXT_EXTRACTION_QUERY_BUILDER"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+
+    alert_context_response = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="ALERT_CONTEXT_EXTRACTION_QUERY_BUILDER",
+        prompt_params={
             "requirement": task,
             "alert": alert,
             "index_name": index_name,
             "customer_index_details": field_data_string,
             "env": env,
             "matching_records": matching_records,
-        }
-    ).text
-
-    alert_context_response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhAlertContext
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhAlertContext,
+        history_params={
+            "aid": aid,
+            "subtype": "alert_context",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Wazuh SIEM Alerts. Your task is to determine context of the given alert.",
     )
-    alert_context_response = alert_context_response.model_dump()
     Logger.info(f"Query source_ip_details: {alert_context_response}")
 
     # Parse the sanitized_response as a JSON object if it's a string
@@ -166,7 +169,7 @@ async def wazuh_get_single_matching_record(
 
 
 async def wazuh_choose_index(
-    intcid: str, tid: str, question_id: str, triage_question: str, alert: str
+    intcid: str, aid: str, tid: str, question_id: str, triage_question: str, alert: str
 ) -> dict:
     """Selects the appropriate Wazuh index for a given triage requirement and alert.
 
@@ -193,19 +196,22 @@ async def wazuh_choose_index(
     index_name = RedisManager.get_key(redis_key)
     Logger.info(f"Cached index: {index_name}")
 
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_ENVIRONMENT_SELECTION_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
-            "alert": alert,
-        }
-    ).text
     response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.Environment
+        intcid=intcid,
+        prompt_template_name="WAZUH_ENVIRONMENT_SELECTION_PROMPT",
+        prompt_params={
+            "alert": alert,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.Environment,
+        history_params={
+            "aid": aid,
+            "subtype": "index_name",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Wazuh SIEM Alerts. Your task is to determine context of the given alert.",
     )
-    response = response.model_dump()
+
     Logger.debug(f"Response: {response}")
     env = response["env"]
 
@@ -218,24 +224,24 @@ async def wazuh_choose_index(
         )
         return {"index_name": index_name, "env": env}
 
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_INDEX_SELECTION_PROMPT"
-    )
-
-    prompt_template = PromptTemplate.from_template(_template)
-
-    formatted_prompt = prompt_template.invoke(
-        {
+    response = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="WAZUH_INDEX_SELECTION_PROMPT",
+        prompt_params={
             "requirement": triage_question,
             "alert": alert,
             "customer_index_details": customer_index_details,
-        }
-    ).text
-
-    response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhIndexName
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhIndexName,
+        history_params={
+            "aid": aid,
+            "subtype": "environment",
+        },
+        type="triage",
+        system_prompt="You are an expert in understanding Wazuh SIEM Alerts. Your task is to determine context of the given alert.",
     )
-    response = response.model_dump()
+
     Logger.debug(f"Response: {response}")
     index_name = response["index_name"]
 
@@ -250,6 +256,7 @@ async def wazuh_choose_index(
 
 async def _generate_wazuh_query_template(
     intcid: str,
+    aid: str,
     requirement: str,
     alert: str,
     index_name: str,
@@ -273,94 +280,97 @@ async def _generate_wazuh_query_template(
     Returns:
         The generated and refined Wazuh query template string.
     """
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_QUERY_TEMPLATE_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+
+    query_generaton_response = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="WAZUH_QUERY_TEMPLATE_PROMPT",
+        prompt_params={
             "requirement": requirement,
             "alert": alert,
             "index_name": index_name,
             "field_mapping": field_name_list,
             "env": env,
-        }
-    ).text
-
-    query_generaton_response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhQueryTemplate,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to determine query template with placeholders for triaging given requirement.",
     )
     Logger.info(f"response generated: {query_generaton_response}")
 
-    query_generaton_response = query_generaton_response.model_dump()["query_template"]
+    query_generaton_response = query_generaton_response["query_template"]
+
     # Step 3: Query sanitization
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
-            "text_json": query_generaton_response,
-        }
-    ).text
+
     sanitized_response = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
+        intcid=intcid,
+        prompt_template_name="WAZUH_QUERY_SANITIZER_PROMPT",
+        prompt_params={
+            "text_json": query_generaton_response,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhQueryTemplate,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to sanitize given query template.",
     )
-    sanitized_response = sanitized_response.model_dump()
-    sanitized_response = sanitized_response["query_template"]
-    Logger.info(f"Query sanitized: {sanitized_response}")
-
-    # Parse the sanitized_response as a JSON object if it's a string
-    if isinstance(sanitized_response, str):
-        sanitized_response = json.loads(sanitized_response)
-
     query_template = sanitized_response["query_template"]
-    Logger.info(f"Final query template before reflection: {query_template}")
+    Logger.info(f"Query sanitized: {query_template}")
 
     # Reflection rounds now
     for attempt in range(3):
         Logger.info(f"Reflection round: {attempt}, query_template: {query_template}")
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_QUERY_TEMPLATE_REFLECTION_PROMPT"
-        )
-        prompt_template = PromptTemplate.from_template(_template)
-        formatted_prompt = prompt_template.invoke(
-            {
+
+        query_generaton_response = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="WAZUH_QUERY_TEMPLATE_REFLECTION_PROMPT",
+            prompt_params={
                 "requirement": requirement,
                 "alert": alert,
                 "index_name": index_name,
                 "field_mapping": field_name_list,
                 "query_template": query_template,
-            }
-        ).text
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=wazuh_models.WazuhQueryTemplate,
+            history_params={
+                "aid": aid,
+                "subtype": "query_template",
+            },
+            type="triage",
+            system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to sanitize given query template.",
+        )
 
-        query_generaton_response = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
-        )
         Logger.info(f"response generated: {query_generaton_response}")
-        query_generaton_response = query_generaton_response.model_dump()["query_template"]
-        Logger.info(f"Response after reflection: {query_generaton_response}")
+        query_template = query_generaton_response["query_template"]
+        Logger.info(f"query_template after reflection: {query_template}")
+
         # Step 3: Query sanitization
-        _template, _version = PromptManager.get_prompt_template(
-            intcid, "logiq", "WAZUH_QUERY_SANITIZER_PROMPT"
-        )
-        prompt_template = PromptTemplate.from_template(_template)
-        formatted_prompt = prompt_template.invoke(
-            {
-                "text_json": query_generaton_response,
-            }
-        ).text
         sanitized_response = AIManager.run_prompt_with_structured_output(
-            PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
+            intcid=intcid,
+            prompt_template_name="WAZUH_QUERY_SANITIZER_PROMPT",
+            prompt_params={
+                "text_json": query_template,
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=wazuh_models.WazuhQueryTemplate,
+            history_params={
+                "aid": aid,
+                "subtype": "query_template",
+            },
+            type="triage",
+            system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to sanitize given query template.",
         )
-        sanitized_response = sanitized_response.model_dump()
+
         sanitized_response = sanitized_response["query_template"]
         Logger.info(f"Query sanitized: {sanitized_response}")
-
-        # Parse the sanitized_response as a JSON object if it's a string
-        if isinstance(sanitized_response, str):
-            sanitized_response = json.loads(sanitized_response)
-
         query_template = sanitized_response["query_template"]
 
     Logger.info(f"Final query template after reflection: {query_template}")
@@ -368,7 +378,7 @@ async def _generate_wazuh_query_template(
 
 
 async def _replace_timerange_as_per_requirement(
-    intcid: str, requirement: str, wazuh_query_template: str, alert: str
+    intcid: str, aid: str, requirement: str, wazuh_query_template: str, alert: str
 ) -> str:
     """Replaces time range placeholders in a Wazuh query template.
 
@@ -390,29 +400,34 @@ async def _replace_timerange_as_per_requirement(
     Logger.info(
         f"_replace_timerange_as_per_requirement: Recevied template: {wazuh_query_template}"
     )
+
     # Generate actual query
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_TIMERANGE_REPLACEMENT_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+    wazuh_query = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="WAZUH_TIMERANGE_REPLACEMENT_PROMPT",
+        prompt_params={
             "requirement": requirement,
             "query_template": wazuh_query_template,
             "alert": alert,
-        }
-    ).text
-    wazuh_query = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQueryTemplate
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhQueryTemplate,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to create a query to triage given requirement.",
     )
-    wazuh_query = wazuh_query.model_dump()["query_template"]
-    Logger.info(f"Final actualy query: {wazuh_query}")
+
+    wazuh_query = wazuh_query["query_template"]
+    Logger.info(f"Final time replaced query: {wazuh_query}")
 
     return wazuh_query
 
 
 async def _generate_wazuh_query_using_template(
-    intcid: str, requirement: str, wazuh_query_template: str, alert: str
+    intcid: str, aid: str, requirement: str, wazuh_query_template: str, alert: str
 ) -> str:
     """Generates a final Wazuh query by replacing field value placeholders.
 
@@ -433,22 +448,28 @@ async def _generate_wazuh_query_using_template(
     Logger.info(
         f"_generate_wazuh_query_using_template: Recevied template: {wazuh_query_template}"
     )
+
     # Generate actual query
-    _template, _version = PromptManager.get_prompt_template(
-        intcid, "logiq", "WAZUH_FIELD_VALUE_REPLACEMENT_PROMPT"
-    )
-    prompt_template = PromptTemplate.from_template(_template)
-    formatted_prompt = prompt_template.invoke(
-        {
+
+    wazuh_query = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="WAZUH_FIELD_VALUE_REPLACEMENT_PROMPT",
+        prompt_params={
             "requirement": requirement,
             "query_template": wazuh_query_template,
             "alert": alert,
-        }
-    ).text
-    wazuh_query = AIManager.run_prompt_with_structured_output(
-        PropX.get_property("module.llm.model"), formatted_prompt, wazuh_models.WazuhQuery
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=wazuh_models.WazuhQuery,
+        history_params={
+            "aid": aid,
+            "subtype": "query_template",
+        },
+        type="triage",
+        system_prompt="You are a SOC expert in understanding Wazuh SIEM Alerts. Your task is to create a query to triage given requirement.",
     )
-    wazuh_query = wazuh_query.model_dump()["query"]
+
+    wazuh_query = wazuh_query["query"]
     Logger.info(f"Final actualy query: {wazuh_query}")
 
     return wazuh_query
@@ -457,6 +478,7 @@ async def _generate_wazuh_query_using_template(
 async def wazuh_generate_query(
     intcid: str,
     task: str,
+    aid: str,
     index_name: str,
     tid: str,
     question_id: str,
@@ -508,6 +530,7 @@ async def wazuh_generate_query(
             # Generate query template
             query_template = await _generate_wazuh_query_template(
                 intcid=intcid,
+                aid=aid,
                 requirement=task,
                 alert=alert,
                 index_name=index_name,
@@ -520,6 +543,7 @@ async def wazuh_generate_query(
         wazuh_query_template_time_replaced = (
             await _replace_timerange_as_per_requirement(
                 intcid,
+                aid,
                 task,
                 query_template,
                 alert,
@@ -531,6 +555,7 @@ async def wazuh_generate_query(
 
         wazuh_query = await _generate_wazuh_query_using_template(
             intcid,
+            aid,
             task,
             wazuh_query_template_time_replaced,
             alert,

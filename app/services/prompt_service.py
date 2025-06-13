@@ -1,8 +1,5 @@
-import os
-import json
-from typing import List, Dict, Any
+from typing import Any
 from pltfrm import Logger2 as Logger
-from app.core.config import settings
 from pltfrm.aimgr.manager import AIManager
 import importlib
 
@@ -38,8 +35,11 @@ def execute_prompt(
             module = importlib.import_module(module_path)
             class_obj = getattr(module, class_name)
 
-            return AIManager.run_prompt_with_structured_output(
-                model_name, user_prompt, class_obj, system_prompt=system_prompt
+            return AIManager.run_prompt_with_structured_output_direct(
+                system_prompt,
+                user_prompt,
+                model_name,
+                class_obj,
             )
         except (ImportError, AttributeError, ValueError) as e:
             Logger.error(f"Failed to load model class {model_class}: {str(e)}")

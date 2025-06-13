@@ -18,12 +18,14 @@ from app.services.siem.splunk.tools import (
 # Request models
 class SplunkChooseIndexRequest(BaseModel):
     task: str
+    aid: str
     requirement: str
     alert: str
 
 
 class GenerateSplunkQueryRequest(BaseModel):
     task: str
+    aid: str
     requirement: str
     index_name: str
     sourcetype: str
@@ -60,7 +62,9 @@ async def splunk_choose_index_route(
         f"api: /siem/splunk/splunk_choose_index/{intcid}: Selecting index for requirement"
     )
     try:
-        result = await splunk_choose_index(intcid, request.requirement, request.alert)
+        result = await splunk_choose_index(
+            intcid, request.aid, request.requirement, request.alert
+        )
         return result
     except Exception as e:
         Logger.error(f"Error selecting Splunk index: {str(e)}")
@@ -96,6 +100,7 @@ async def generate_splunk_query_route(
     try:
         result = await generate_splunk_query(
             intcid,
+            request.aid,
             request.index_name,
             request.sourcetype,
             request.requirement,
