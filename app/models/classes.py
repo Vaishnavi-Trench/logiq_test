@@ -398,3 +398,88 @@ class FeedbackImprovementSuggestions(BaseModel):
     suggestions: List[FeedbackImprovementSuggestion] = Field(
         description="List of feedback improvement suggestions."
     )
+
+
+####nteg related classes
+# sentinel related classes
+class SentinelFieldDescription(BaseModel):
+    """
+    Model representing a field description in Sentinel.
+    """
+
+    descriptions: dict = Field(
+        description="Field descriptions mapping field names to their descriptions"
+    )
+
+
+class SentinelSuggestedFields(BaseModel):
+    """
+    Model representing suggested fields based on field descriptions.
+    """
+
+    suggested_fields: list[str] = Field(
+        description="List of suggested fields based on the field descriptions"
+    )
+
+
+class SentinelFieldSelectionOutput(BaseModel):
+    """Output model for the field selection."""
+
+    suggested_fields: List[str]
+
+
+class SentinelIndexDescriptionOutput(BaseModel):
+    """Output model for the index description."""
+
+    description: str
+
+
+# splunk related classes
+class SplunkIndexDescription(BaseModel):
+    """
+    Splunk index description model.
+    """
+
+    description: str = Field(
+        description="Description of the Splunk index",
+    )
+
+
+class SplunkFieldDescription(BaseModel):
+    """
+    Splunk field description model.
+    """
+
+    description: str = Field(
+        description="Description of the Splunk field",
+    )
+
+
+# sumologic related classes
+class SumoLogicIndexDescriptionOutput(BaseModel):
+    """Output model for the index description."""
+
+    description: str
+
+
+# wazuh related classes
+class WazuhFieldsDescription(BaseModel):
+    """
+    Model representing field descriptions in Wazuh.
+    This model contains a mapping of field names to their descriptions.
+    """
+
+    fields_description: dict = Field(
+        description="Field descriptions mapping field names to their descriptions"
+    )
+
+
+class WazuhIndexDescription(BaseModel):
+    """
+    Model representing the description of a Wazuh index.
+    This model contains a description field that provides details about the index.
+    """
+
+    description: str = Field(
+        description="Description of the Wazuh index",
+    )
