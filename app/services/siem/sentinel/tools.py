@@ -74,34 +74,8 @@ async def sentinel_choose_table(
     )
 
     # --- Determine Environment ---
-    env = None
-    try:
-        env_response = AIManager.run_prompt_with_structured_output(
-            intcid=intcid,
-            prompt_template_name="SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-            prompt_params={"alert": alert_str},
-            model_name=model_name,
-            model_class=sentinel_models.Environment,
-            history_params={
-                "aid": aid,
-                "tid": tid,
-                "qid": question_id,
-                "step_id": step_id,
-                "subtype": "environment_selection",
-            },
-            type="triage",
-        )
-        Logger.debug(f"AI response for environment selection: {env_response}")
-        env = env_response.get("env", "unknown").lower()
-
-        if not env:
-            Logger.warn(f"Could not determine environment from AI response: {env}")
-            return {"error": "Failed to determine environment."}
-        Logger.info(f"Determined environment: {env}")
-    except Exception as e:
-        Logger.error(f"Error determining environment: {e}\n{traceback.format_exc()}")
-        return {"error": f"Failed to determine environment: {e}"}
-
+    env = alert_context.get("env", "unknown").lower()
+    
     # --- Get Available Tables ---
 
     query = {"intcid": intcid, "vendor": "sentinel", "subtype": "index_list"}
@@ -113,16 +87,6 @@ async def sentinel_choose_table(
         customer_tables_with_schema = table_metadata.get("indices")
 
     else:
-        # table_schema = await get_sentinel_tables_with_schema(intcid, task=triage_question)
-        # if "error" in table_schema:
-        #     Logger.error(
-        #         f"Failed to get Sentinel tables for {intcid}: {table_schema['error']}"
-        #     )
-        #     return {
-        #         "error": f"Failed to retrieve Sentinel tables: {table_schema['error']}"
-        #     }
-        # else:
-        #     customer_tables_with_schema = table_schema.get("tables_with_schema")
         return {"error": "Failed to retrieve Sentinel tables. No metadata found."}
 
     try:
@@ -1381,9 +1345,12 @@ async def sentinel_get_alert_context(
         )
 
         if user_name_value:
-            username = user_name_value.split("@")[0]
+            # Always extract the username before '@'
+            if isinstance(user_name_value, list):
+                username = user_name_value[0].split("@")[0]
+            else:
+                username = user_name_value.split("@")[0]
             user_email = sentinel_utils.user_lookup(intcid, username)
-            # Store both username and email as a list in the value
             alert_context["extracted_fields"]["user_name"]["value"] = [username, user_email] if user_email else [username]
         return alert_context
 
