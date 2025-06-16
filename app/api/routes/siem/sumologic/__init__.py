@@ -7,7 +7,7 @@ import traceback
 import json
 
 
-from app.services.siem.sumologic.tools import get_available_indices, run_sumo_query, get_system_alerts
+from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts
 class SumoLogicIndicesRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
 
@@ -52,7 +52,7 @@ async def get_indices(
         
         
 @router.post("/run_query/{intcid}")
-async def run_query(
+async def run_query_route(
     intcid: str = Path(..., description="Customer ID"),
     request: SumoLogicQueryRequest = Body(..., description="Request body containing task and query to run against SumoLogic")
 ):
@@ -64,7 +64,7 @@ async def run_query(
         Logger.info(f"Task: {task} - Integration ID: {intcid}")
         query = request.query
         Logger.info(f"Running query for intcid {intcid}")
-        result = await run_sumo_query(intcid=intcid, task=task, query=query)
+        result = await sumologic_run_sql_query(intcid=intcid, task=task, query=query)
         return result
     except (ValueError, TypeError) as e:
         Logger.error(f"Error running query {str(e)}")
@@ -76,8 +76,8 @@ async def run_query(
             content={"error": f"Failed to run query on sumologic: {str(e)}"},
         )
         
-@router.post("/get_system_alerts/{intcid}")
-async def get_system_alerts_route(
+@router.post("/fetch_security_alerts/{intcid}")
+async def fetch_security_alerts_route(
     intcid: str = Path(..., description="Customer ID"),
     request: SumoLogicSystemAlertsRequest = Body(..., description="Request body containing task and optional start and end time for the query")
 ):
@@ -87,7 +87,7 @@ async def get_system_alerts_route(
     try:
         task = request.task
         Logger.info(f"Task: {task} - Integration ID: {intcid}")
-        result = await get_system_alerts(
+        result = await fetch_security_alerts(
            intcid=intcid,
            task=task,
            start_time=request.start_time,

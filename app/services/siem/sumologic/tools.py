@@ -55,7 +55,7 @@ async def get_available_indices(intcid: str, task:str) -> dict:
         return {"error": "indices_fetch_error", "message": str(e)}
     
     
-async def run_sumo_query(
+async def sumologic_run_sql_query(
     intcid: str,
     task: str,
     query: str,
@@ -207,7 +207,7 @@ async def run_sumo_query(
         return None
     
     
-async def get_system_alerts(
+async def fetch_security_alerts(
     intcid: str,
     task: str,
     start_time: str = None,
@@ -233,7 +233,7 @@ async def get_system_alerts(
         start_time = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     query = '_index=sumologic_system_events AND _sourcename = "AlertSystemInfo"'
-    results = await run_sumo_query(
+    results = await sumologic_run_sql_query(
         intcid=intcid,
         task=task,
         query=query,
