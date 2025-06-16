@@ -205,3 +205,45 @@ async def run_sumo_query(
     except Exception as e:
         Logger.error(f"Unexpected error running query: {str(e)}")
         return None
+    
+    
+async def get_system_alerts(
+    intcid: str,
+    task: str,
+    start_time: str = None,
+    end_time: str = None
+) -> dict:
+    """
+    Fetch system alerts from SumoLogic using a specific query.
+
+    Args:
+        intcid (str): Integration ID
+        task (str): Task identifier for logging
+        start_time (str, optional): Start time in ISO-8601 format
+        end_time (str, optional): End time in ISO-8601 format
+
+    Returns:
+        dict: {"alerts_created": [...]}
+    """
+    # Set default time range to 1 month if not provided
+    now = datetime.utcnow()
+    if not end_time:
+        end_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not start_time:
+        start_time = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    query = '_index=sumologic_system_events AND _sourcename = "AlertSystemInfo"'
+    results = await run_sumo_query(
+        intcid=intcid,
+        task=task,
+        query=query,
+        from_time=start_time,
+        to_time=end_time
+    )
+    alerts = results.get("query_results", []) if results else []
+
+    alerts_created = [a for a in alerts if a.get("details", {}).get("name") == "AlertCreated"]
+
+    return {
+        "alerts_created": alerts_created
+    }
