@@ -1706,11 +1706,12 @@ class SentinelUtils:
         if not user_lookup_collection:
             Logger.warn(f"No user lookup collection found for intcid: {intcid}")
             return ""
-        user_lookup = user_lookup_collection["user_lookup_table"]
+        user_lookup = user_lookup_collection.get("user_lookup_table", {})
 
-        if user_lookup[username]:
-            user_info = user_lookup[username]
+        user_info = user_lookup.get(username, "")
+        if user_info:
             Logger.info(f"Found user info for '{username}': {user_info}")
             return user_info
         else:
+            Logger.info(f"No user info found for '{username}'.")
             return ""

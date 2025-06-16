@@ -1352,6 +1352,7 @@ async def sentinel_get_alert_context(
                 username = user_name_value.split("@")[0]
             user_email = sentinel_utils.user_lookup(intcid, username)
             alert_context["extracted_fields"]["user_name"]["value"] = [username, user_email] if user_email else [username]
+            Logger.info(f"Alerrt Context: {alert_context}")
         return alert_context
 
     except Exception as e:
