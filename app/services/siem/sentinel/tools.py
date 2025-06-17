@@ -2,6 +2,7 @@ import json
 import traceback
 import requests
 from langchain_core.prompts import PromptTemplate
+from typing import Optional
 
 # Import platform components
 from pltfrm import (
@@ -833,15 +834,16 @@ async def sentinel_prepare_kql_query(
     return {"queries": queries}
 
 
+
 async def standalone_sentinel_prepare_kql_query(
     intcid: str,
     task: str,
-    aid: str,
-    question_id: str,
-    step_id: str,
-    tid: str,
     alert_context: dict,
     query_template: str,
+    question_id: Optional[str] = None,
+    step_id: Optional[str] = None,
+    tid: Optional[str] = None,
+    aid: Optional[str] = None,
 ):
     """Prepares a KQL query by replacing field placeholders with actual values.
 
@@ -1517,3 +1519,60 @@ async def get_top_matching_tables(intcid: str, tags: str, task: str) -> dict:
     except Exception as e:
         Logger.error(f"Error retrieving matching tables: {e}")
         return {"error": f"An error occurred while retrieving matching tables: {e}"}
+
+
+async def get_user_auth_details(intcid: str, alert_context: dict, task: str) -> dict:
+    """Retrieves user authentication details for the specified integration ID.
+
+    Args:
+        intcid: The customer integration ID.
+        alert_context: The context of the alert, which may include user information.
+        task: The specific task or information needed.
+
+    Returns:
+        A dictionary containing the user authentication details.
+    """
+    Logger.info(f"tool:get_user_auth_details: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    try:
+        template_name = "auth_lookup"
+        query_template = sentinel_utils.get_sentinel_template(intcid, template_name)
+        user_details = []
+        if not query_template:
+            Logger.info("No user authentication details found.")
+            return {"user_auth_details": {}}
+        if isinstance(query_template, str):
+            try:
+                kql_query = await standalone_sentinel_prepare_kql_query(intcid, task, alert_context, query_template)
+                if "error" in kql_query:
+                    Logger.info("No KQL query generated.")
+                    return {"user_auth_details": {}}
+                kql_query = kql_query.get("query", "")
+                if not kql_query:
+                    Logger.info("No KQL query generated.")
+                    return {"user_auth_details": {}}
+                query_result = await sentinel_run_kql_query(
+                    intcid, task, kql_query
+                )
+                if "error" in query_result:
+                    Logger.error(f"Error running KQL query: {query_result['error']}")
+                    return {"user_auth_details": {}}
+                user_details = query_result.get("query_results", [])
+            except Exception as e:
+                Logger.error(f"Error retrieving user authentication details: {e}")
+                return {"error": f"Failed to retrieve user authentication details: {e}"}
+        Logger.info("Successfully retrieved user authentication details.")
+        return {"user_auth_details": user_details}
+
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error retrieving user authentication details: {e}")
+        return {"error": f"An error occurred while retrieving user authentication details: {e}"}
+
+
+
+
+

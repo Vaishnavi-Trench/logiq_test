@@ -1715,3 +1715,25 @@ class SentinelUtils:
         else:
             Logger.info(f"No user info found for '{username}'.")
             return ""
+
+    def get_sentinel_template(self, intcid: str, template_name: str) -> str:
+        """
+        Retrieves the specified Sentinel template for the given integration ID.
+
+        Args:
+            intcid (str): Integration/Customer ID for logging.
+            template_name (str): The name of the template to retrieve.
+
+        Returns:
+            str: The requested Sentinel template or an empty string if not found.
+        """
+        Logger.info(f"Retrieving Sentinel template '{template_name}' for intcid: {intcid}")
+        doc = MongoDBManager.get_record_by_multiple_fields(
+            self.main_db, self.templates_db, {"intcid": intcid, "type": "sentinel_template", "template_name": template_name}
+        )
+        if not doc:
+            Logger.warn(f"Sentinel template '{template_name}' not found.")
+            return ""
+        query_template = doc.get("query_template", "")
+        Logger.info(f"Retrieved Sentinel template '{template_name}': {query_template}")
+        return query_template

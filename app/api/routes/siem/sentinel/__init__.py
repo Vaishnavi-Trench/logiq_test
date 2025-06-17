@@ -27,6 +27,7 @@ from app.services.siem.sentinel.tools import (
     standalone_sentinel_prepare_kql_query,
     sentinel_functions,
     get_top_matching_tables,
+    get_user_auth_details
 )
 
 
@@ -174,6 +175,11 @@ class GetTopMatchingTablesRequest(BaseModel):
     tags: Dict
     task: Optional[str] = None
 
+class GetUserAuthDetailsRequest(BaseModel):
+    task: Optional[str] = None
+    alert_context: Dict = Field(
+        ..., description="The alert context dictionary containing user details"
+    )
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["sentinel"])
@@ -548,12 +554,12 @@ async def prepare_query_route(
         result = await standalone_sentinel_prepare_kql_query(
             intcid,
             request_body.task,
-            request_body.aid,
+            request_body.alert_context,
+            request_body.query_template,
             request_body.question_id,
             request_body.step_id,
             request_body.tid,
-            request_body.alert_context,
-            request_body.query_template,
+            request_body.aid,
         )
         return result
 
@@ -920,3 +926,36 @@ async def get_top_matching_tables_route(
                 "error": "An unexpected error occurred while getting top matching tables."
             },
         )
+
+@router.post("/get_user_auth_details/{intcid}")
+async def get_user_auth_details_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GetUserAuthDetailsRequest = Body(
+        ..., description="Request to get user authentication details from alert context"
+    ),
+):
+    """
+    Retrieves user authentication details from the alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task and alert context.
+
+    Returns:
+        JSON object with user authentication details or an error.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_user_auth_details/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        result = await get_user_auth_details(intcid, request_body.task, request_body.alert_context)
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting user auth details: {str(e)}")
+        Logger.error(
+            f"Error getting user auth details: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get user auth details: {str(e)}"},
+        )   
