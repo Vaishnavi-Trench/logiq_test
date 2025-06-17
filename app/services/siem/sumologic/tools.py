@@ -245,5 +245,5 @@ async def fetch_security_alerts(
     alerts_created = [a for a in alerts if a.get("details", {}).get("name") == "AlertCreated"]
 
     return {
-        "alerts_created": alerts_created
+        "security_alerts_data": alerts_created
     }
