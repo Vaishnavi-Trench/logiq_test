@@ -1711,7 +1711,7 @@ class SentinelUtils:
         user_info = user_lookup.get(username, "")
         if user_info:
             Logger.info(f"Found user info for '{username}': {user_info}")
-            return user_info
+            return user_info.get("email", "")  # Return email if available
         else:
             Logger.info(f"No user info found for '{username}'.")
             return ""

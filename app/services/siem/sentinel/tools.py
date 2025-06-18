@@ -1348,6 +1348,7 @@ async def sentinel_get_alert_context(
 
         if user_name_value:
             # Always extract the username before '@'
+            Logger.info(f"Extracting user name from value: {user_name_value}")
             if isinstance(user_name_value, list):
                 username = user_name_value[0].split("@")[0]
             else:
@@ -1574,5 +1575,55 @@ async def get_user_auth_details(intcid: str, alert_context: dict, task: str) -> 
 
 
 
+async def get_user_role(intcid: str, alert_context: dict, task: str) -> dict:
+    """Retrieves user role details for the specified integration ID.
 
+    Args:
+        intcid: The customer integration ID.
+        alert_context: The context of the alert, which may include user information.
+        task: The specific task or information needed.
 
+    Returns:
+        A dictionary containing the user role details.
+    """
+    Logger.info(f"tool:get_user_role: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    query_template = sentinel_utils.get_sentinel_template(intcid, "role_lookup")
+    if not query_template:
+        Logger.info("No user role lookup template found.")
+        return {"user_role_details": {}}
+
+    try:
+        kql_query = await standalone_sentinel_prepare_kql_query(
+            intcid, task, alert_context, query_template
+        )
+        if "error" in kql_query:
+            Logger.info("No KQL query generated.")
+            return {"user_role_details": {}}
+        kql_query = kql_query.get("query", "")
+        if not kql_query:
+            Logger.info("No KQL query generated.")
+            return {"user_role_details": {}}
+
+        query_result = await sentinel_run_kql_query(intcid, task, kql_query)
+        if "error" in query_result:
+            Logger.error(f"Error running KQL query: {query_result['error']}")
+            return {"user_role_details": {}}
+
+        user_roles = query_result.get("query_results", [])
+        if not user_roles:
+            Logger.info("No user role details found.")
+            return {"user_role_details": {}}
+        # user_roles is a list of dicts; take the first one
+        role_info = user_roles[0] if isinstance(user_roles, list) and user_roles else user_roles
+        is_admin = role_info.get("is_admin", False)
+        role = "admin" if is_admin else "user"
+        Logger.info("Successfully retrieved user role details.")
+        return {"user_role_details": role}
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error retrieving user role details: {e}")
+        return {"error": f"An error occurred while retrieving user role details: {e}"}
