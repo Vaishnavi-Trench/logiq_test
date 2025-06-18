@@ -1271,23 +1271,24 @@ async def sentinel_get_alert_context(
     # --- Step 1: Determine Environment ---
     env = None
     try:
-        system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to determine the environment (e.g., Production, Staging, Development) based on the provided alert context. The output should be a single word representing the environment."
+        # system_prompt = "You are an expert in Microsoft Sentinel and KQL. Your task is to determine the environment (e.g., Production, Staging, Development) based on the provided alert context. The output should be a single word representing the environment."
 
-        env_response = AIManager.run_prompt_with_structured_output(
-            intcid=intcid,
-            prompt_template_name="SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
-            prompt_params={"alert": alert_str},
-            model_name=PropX.get_property("module.llm.model"),
-            model_class=sentinel_models.Environment,
-            history_params={
-                "aid": aid,
-                "subtype": "alert_context",
-            },
-            type="triage",
-            system_prompt="You are an expert in understanding Microsoft Sentinel Alerts. Your task is to detemine envinronment based on the provided alert.",
-        )
-        Logger.debug(f"AI response for environment selection: {env_response}")
-        env = env_response.get("env", "unknown").lower()
+        # env_response = AIManager.run_prompt_with_structured_output(
+        #     intcid=intcid,
+        #     prompt_template_name="SENTINEL_ENVIRONMENT_SELECTION_PROMPT",
+        #     prompt_params={"alert": alert_str},
+        #     model_name=PropX.get_property("module.llm.model"),
+        #     model_class=sentinel_models.Environment,
+        #     history_params={
+        #         "aid": aid,
+        #         "subtype": "alert_context",
+        #     },
+        #     type="triage",
+        #     system_prompt="You are an expert in understanding Microsoft Sentinel Alerts. Your task is to detemine envinronment based on the provided alert.",
+        # )
+        # Logger.debug(f"AI response for environment selection: {env_response}")
+        # env = env_response.get("env", "unknown").lower()
+        env = "unknown"
 
         if not env:
             Logger.warn(f"Could not determine environment from AI response: {env}")
