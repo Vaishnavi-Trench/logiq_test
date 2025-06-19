@@ -10,8 +10,9 @@ import traceback
 import re  # Import regex for checking limit patterns
 from datetime import datetime, timezone
 import collections
-from pltfrm import PropX, Logger2 as Logger, MongoDBManager
+from pltfrm import PropX, Logger2 as Logger, MongoDBManager, AIManager
 from typing import List, Dict, Any
+from app.services.siem.sentinel import models as sentinel_models
 
 # Removed global property assignments
 
@@ -32,9 +33,7 @@ class SentinelUtils:
         self.intcid = intcid
         self.main_db = PropX.get_property("module.integration.config.db")
         self.integration_db = PropX.get_property("module.integration.config.collection")
-        self.toolsmetadata_db = PropX.get_property(
-            "module.integration.metadata.collection"
-        )
+        self.toolsmetadata_db = PropX.get_property("module.integration.metadata.collection")
         self.trenchrecords_db = PropX.get_property("module.trenchrun.collection")
         self.templates_db = PropX.get_property("module.templates.collection")
         config = MongoDBManager.get_record_by_multiple_fields(
@@ -1737,3 +1736,83 @@ class SentinelUtils:
         query_template = doc.get("query_template", "")
         Logger.info(f"Retrieved Sentinel template '{template_name}': {query_template}")
         return query_template
+
+    def format_schema_to_string(self, schema: list[dict]) -> str:
+        """
+        Formats a Sentinel table schema (list of dicts) into a readable string.
+
+        Args:
+            schema (list[dict]): The schema as returned by getschema or similar.
+
+        Returns:
+            str: A formatted string listing each field and its data type.
+        """
+        if not schema or not isinstance(schema, list):
+            return "No schema available."
+
+        lines = []
+        for col in schema:
+            field_name = col.get("ColumnName", "")
+            col_type = col.get("ColumnType", "")
+            # Use 'json' for dynamic types
+            if col_type.lower() == "dynamic":
+                col_type = "json"
+            lines.append(f"Field Name: {field_name}\nData Type: {col_type}")
+
+        return "\n".join(lines)
+
+    def get_sample_records(self, intcid: str, table_name: str, schema: str, requirement: str, aid: str, tid: str, question_id: str, step_id: str, limit: int = 3):
+        """
+        Fetches sample records from a Sentinel table based on a requirement.
+
+        Args:
+            intcid: Integration/Customer ID (for logging).
+            table_name: The target Sentinel table.
+            requirement: The specific requirement to filter records.
+            limit: The maximum number of records to return (default: 3).
+
+        Returns:
+            A dictionary containing a list of sample records under the key 'sample_records'.
+            Returns an empty list if no matches are found.
+            Returns an error dictionary on failure.
+        """
+        Logger.info(
+            f"get_sample_records for intcid: {intcid}, table: {table_name}, requirement: {requirement}, limit: {limit}"
+        )
+
+        
+        if not schema:
+            Logger.warn(f"No schema found for table: {table_name}")
+            return {"sample_records": []}
+
+        query = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="SAMPLE_EXTRACTOR_PROMPT",
+            prompt_params={
+                "requirement": requirement,
+                "table_name": table_name,
+                "schema": schema,
+
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=sentinel_models.FinalQuery,
+            history_params={
+                "aid": aid,
+                "tid": tid,
+                "qid": question_id,
+                "step_id": step_id,
+                "subtype": "sample_records",
+            },
+            type="triage",
+            system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to generate a KQL query template based on the provided requirement, alert context, table name, and schema. The output should be a valid KQL query template that can be used to fetch relevant data from the specified table.",
+        )
+        
+        query = query.get("final_query")
+        if not query:
+            Logger.warn(
+                f"No valid KQL query generated for requirement: {requirement} in table: {table_name}"
+            )
+            return None
+        Logger.debug(f"Generated KQL query for Sample records: {query}")
+        return query
+       

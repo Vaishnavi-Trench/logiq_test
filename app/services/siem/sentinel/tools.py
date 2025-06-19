@@ -834,7 +834,6 @@ async def sentinel_prepare_kql_query(
     return {"queries": queries}
 
 
-
 async def standalone_sentinel_prepare_kql_query(
     intcid: str,
     task: str,
@@ -964,14 +963,38 @@ async def sentinel_generate_kql_query_template(
             intcid, "Get schema for table", schema_query
         )
         schema = schema.get("query_results")
+        
+        schema = sentinel_utils.format_schema_to_string(schema)
+        
         if not schema or len(schema) < 0:
             Logger.error(
                 f"Could not retrieve schema for table '{table}'. Cannot generate query."
             )
             return {"error": f"Failed to get schema for table {table}."}
 
-        sample_records = await fetch_sample_records(intcid, table)
+        # sample_records = await fetch_sample_records(intcid, table)
+        sample_records_query = sentinel_utils.get_sample_records(intcid, table, schema, task, aid, tid, question_id, step_id)
+        
+        if sample_records_query is None:
+            sample_records_query = f"{table} | take 3"
+        
+        else:
+            sample_records = await sentinel_run_kql_query(
+                intcid=intcid,
+                task=task,
+                kql_query=sample_records_query,
+            )
+            if "error" in sample_records:
+                sample_records = await sentinel_run_kql_query(
+                intcid=intcid,
+                task=task,
+                kql_query=f"{table} | take 3",
+            )
+            else:
+                sample_records = sample_records.get("query_results")
+
         Logger.info(f"Fetched {len(sample_records)} sample records for {table}")
+        Logger.debug(f"Sample Records: {sample_records}")
 
         query_template = AIManager.run_prompt_with_structured_output(
             intcid=intcid,
@@ -1304,7 +1327,7 @@ async def sentinel_get_alert_context(
     schema = None
     schema_str = "{}"
     if target_table_name:
-        schema = sentinel_utils.get_table_schema(target_table_name)
+        status, schema = sentinel_utils.get_table_schema(target_table_name)
         if not schema:
             Logger.warn(
                 f"Could not retrieve schema for determined table '{target_table_name}'."
