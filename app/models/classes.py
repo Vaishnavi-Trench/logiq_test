@@ -364,6 +364,7 @@ class InstructionInsight(BaseModel):
     content: str = Field(
         description="A concise and actionable data point extracted from the feedback and triage label."
     )
+
     confidence: str = Field(
         description="Classify the insight as either 'low', 'medium', or 'high' based on its significance for future triaging."
     )
@@ -371,13 +372,58 @@ class InstructionInsight(BaseModel):
         description="A brief explanation of why this insight was derived from the given input."
     )
     entities: Optional[List[DatapointEntity]] = Field(
-        description="List of entities related to the insight, such as IP addresses, users, domains, etc."
+        description="Applicable for type: datapoint only. List of entities related to the insight, such as IP addresses, users, domains, etc."
     )
 
 
 class InstructionInsightsAnalysis(BaseModel):
     insights: List[InstructionInsight] = Field(
         description="List of extracted insights for future triaging."
+    )
+
+
+class StepInstructionInsight(BaseModel):
+    type: str = Field(
+        description='Classify the content type as either "playbook" or "datapoint".'
+    )
+    content: str = Field(
+        description="A concise and actionable data point extracted from the feedback and triage label."
+    )
+    confidence: str = Field(
+        description="Classify the insight as either 'low', 'medium', or 'high' based on its significance for future triaging."
+    )
+    reason: str = Field(
+        description="A brief explanation of why this insight was derived from the given input."
+    )
+    operation: Optional[str] = Field(
+        description="Applicable for type: playbook only. The operation to be performed, such as add-question, remove-question, or modify-question."
+    )
+    entities: Optional[List[DatapointEntity]] = Field(
+        description="Applicable for type: datapoint only. List of entities related to the insight, such as IP addresses, users, domains, etc."
+    )
+
+
+class StepInstructionInsightsAnalysis(BaseModel):
+    insights: List[StepInstructionInsight] = Field(
+        description="List of extracted insights or playbook instructions for future triaging."
+    )
+
+
+class TableNameChangeInstruction(BaseModel):
+    type: str = Field(
+        description='Classify the content type as either "playbook" or "datapoint".'
+    )
+    content: str = Field(
+        description="A concise and actionable data point extracted from the feedback and triage label."
+    )
+    confidence: str = Field(
+        description="Classify the insight as either 'low', 'medium', or 'high' based on its significance for future triaging."
+    )
+    reason: str = Field(
+        description="A brief explanation of why this insight was derived from the given input."
+    )
+    correct_table_name: str = Field(
+        description="The proper table name extracted from user input, return: 'unknown' if failed to find a table name in the user input.."
     )
 
 
