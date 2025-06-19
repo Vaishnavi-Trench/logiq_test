@@ -27,7 +27,8 @@ from app.services.siem.sentinel.tools import (
     standalone_sentinel_prepare_kql_query,
     sentinel_functions,
     get_top_matching_tables,
-    get_user_auth_details
+    get_user_auth_details,
+    get_user_ip_details
 )
 
 
@@ -179,6 +180,12 @@ class GetUserAuthDetailsRequest(BaseModel):
     task: Optional[str] = None
     alert_context: Dict = Field(
         ..., description="The alert context dictionary containing user details"
+    )
+
+class GetUserIPDetailsRequest(BaseModel):
+    task: Optional[str] = None
+    alert_context: Dict = Field(
+        ..., description="The alert context dictionary containing user IP details"
     )
 
 # Create router without prefix (prefix is added by parent router)
@@ -959,3 +966,37 @@ async def get_user_auth_details_route(
             status_code=500,
             content={"error": f"Failed to get user auth details: {str(e)}"},
         )   
+        
+@router.post("/get_user_ip_details/{intcid}")
+async def get_user_ip_details_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GetUserIPDetailsRequest = Body(
+        ..., description="Request to get user IP details from alert context"
+    ),
+):
+    """
+    Retrieves user IP details from the alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task and alert context.
+
+    Returns:
+        JSON object with user IP details or an error.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_user_ip_details/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        result = await get_user_ip_details(intcid, request_body.task, request_body.alert_context)
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting user IP details: {str(e)}")
+        Logger.error(
+            f"Error getting user IP details: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get user IP details: {str(e)}"},
+        )   
+        
