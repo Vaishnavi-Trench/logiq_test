@@ -28,6 +28,8 @@ from app.services.siem.sentinel.tools import (
     sentinel_functions,
     get_top_matching_tables,
     get_user_auth_details,
+    get_successful_login_details,
+    get_failed_login_details,
     get_user_ip_details
 )
 
@@ -967,6 +969,73 @@ async def get_user_auth_details_route(
             content={"error": f"Failed to get user auth details: {str(e)}"},
         )   
         
+
+@router.post("/get_successful_login_details/{intcid}")
+async def get_successful_login_details_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GetUserAuthDetailsRequest = Body(
+        ..., description="Request to get successful login details from alert context"
+    ),
+):
+    """
+    Retrieves successful login details from the alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task and alert context.
+
+    Returns:
+        JSON object with successful login details or an error.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_successful_login_details/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        result = await get_successful_login_details(intcid, request_body.task, request_body.alert_context)
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting successful login details: {str(e)}")
+        Logger.error(
+            f"Error getting successful login details: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get successful login details: {str(e)}"},
+        )
+
+@router.post("/get_failed_login_details/{intcid}")
+async def get_failed_login_details_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request_body: GetUserAuthDetailsRequest = Body(
+        ..., description="Request to get failed login details from alert context"
+    ),
+):
+    """
+    Retrieves failed login details from the alert context.
+
+    Args:
+        intcid: Customer ID
+        request_body: Request body containing task and alert context.
+
+    Returns:
+        JSON object with failed login details or an error.
+    """
+    Logger.info(
+        f"api: /siem/sentinel/get_failed_login_details/{intcid}: Task: {request_body.task}"
+    )
+    try:
+        result = await get_failed_login_details(intcid, request_body.task, request_body.alert_context)
+        return result
+    except Exception as e:
+        Logger.error(f"Error getting failed login details: {str(e)}")
+        Logger.error(
+            f"Error getting failed login details: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get failed login details: {str(e)}"},
+        )
+
 @router.post("/get_user_ip_details/{intcid}")
 async def get_user_ip_details_route(
     intcid: str = Path(..., description="Customer ID"),

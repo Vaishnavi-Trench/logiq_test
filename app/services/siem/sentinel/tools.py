@@ -1716,5 +1716,109 @@ async def get_user_ip_details(intcid:str, alert_context: dict, task: str) -> dic
         Logger.error(f"Error retrieving user IP details: {e}")
         return {"error": f"An error occurred while retrieving user IP details: {e}"}
     
+async def get_successful_login_details(intcid: str, alert_context: dict, task: str) -> dict:
+    """Retrieves successful login details for the specified integration ID.
+
+    Args:
+        intcid: The customer integration ID.
+        alert_context: The context of the alert, which may include user information.
+        task: The specific task or information needed.
+
+    Returns:
+        A dictionary containing the successful login details.
+    """
+    Logger.info(f"tool:get_successful_login_details: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    query_template = sentinel_utils.get_sentinel_template(intcid, "successful_login_lookup")
+    if not query_template:
+        Logger.info("No successful login lookup template found.")
+        return {"successful_login_details": {}}
+
+    try:
+        kql_query = await standalone_sentinel_prepare_kql_query(
+            intcid, task, alert_context, query_template
+        )
+        if "error" in kql_query:
+            Logger.info("No KQL query generated.")
+            return {"successful_login_details": {}}
+        kql_query = kql_query.get("query", "")
+        if not kql_query:
+            Logger.info("No KQL query generated.")
+            return {"successful_login_details": {}}
+
+        query_result = await sentinel_run_kql_query(intcid, task, kql_query)
+        if "error" in query_result:
+            Logger.error(f"Error running KQL query: {query_result['error']}")
+            return {"successful_login_details": {}}
+
+        successful_logins = query_result.get("query_results", [])
+        if not successful_logins:
+            Logger.info("No successful login details found.")
+            return {"successful_login_details": {}}
+        
+        # successful_logins is a list of dicts; take the first one
+        login_info = successful_logins
+        Logger.info("Successfully retrieved successful login details.")
+        return {"successful_login_details": login_info}
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error retrieving successful login details: {e}")
+        return {"error": f"An error occurred while retrieving successful login details: {e}"}
+    
+async def get_failed_login_details(intcid: str, alert_context: dict, task: str) -> dict:
+    """Retrieves failed login details for the specified integration ID.
+
+    Args:
+        intcid: The customer integration ID.
+        alert_context: The context of the alert, which may include user information.
+        task: The specific task or information needed.
+
+    Returns:
+        A dictionary containing the failed login details.
+    """
+    Logger.info(f"tool:get_failed_login_details: Starting for {intcid}, Task: {task}")
+
+    sentinel_utils = SentinelUtils(intcid=intcid)
+    if not sentinel_utils.authenticate():
+        return {"error": "Authentication failed. Check configuration and credentials."}
+
+    query_template = sentinel_utils.get_sentinel_template(intcid, "failed_login_lookup")
+    if not query_template:
+        Logger.info("No failed login lookup template found.")
+        return {"failed_login_details": {}}
+
+    try:
+        kql_query = await standalone_sentinel_prepare_kql_query(
+            intcid, task, alert_context, query_template
+        )
+        if "error" in kql_query:
+            Logger.info("No KQL query generated.")
+            return {"failed_login_details": {}}
+        kql_query = kql_query.get("query", "")
+        if not kql_query:
+            Logger.info("No KQL query generated.")
+            return {"failed_login_details": {}}
+
+        query_result = await sentinel_run_kql_query(intcid, task, kql_query)
+        if "error" in query_result:
+            Logger.error(f"Error running KQL query: {query_result['error']}")
+            return {"failed_login_details": {}}
+
+        failed_logins = query_result.get("query_results", [])
+        if not failed_logins:
+            Logger.info("No failed login details found.")
+            return {"failed_login_details": {}}
+        
+        # failed_logins is a list of dicts; take the first one
+        login_info = failed_logins
+        Logger.info("Successfully retrieved failed login details.")
+        return {"failed_login_details": login_info}
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error retrieving failed login details: {e}")
+        return {"error": f"An error occurred while retrieving failed login details: {e}"}
+    
     
     
