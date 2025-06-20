@@ -1815,4 +1815,35 @@ class SentinelUtils:
             return None
         Logger.debug(f"Generated KQL query for Sample records: {query}")
         return query
+    
+    
+    def check_table(self, intcid: str, table_name:str) -> bool:
+        """
+        Checks if a Sentinel table exists in the MongoDB collection.
+
+        Args:
+            intcid (str): Integration/Customer ID for logging.
+            table_name (str): The name of the Sentinel table to check.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
+        Logger.info(f"Checking if table '{table_name}' exists for intcid: {intcid}")
+        filter = {
+            "intcid": intcid,
+            "type": "siem",
+            "vendor": "sentinel",
+            "subtype": "index_list",
+            "indices.index": table_name,
+        }
+        try:
+            doc = MongoDBManager.get_record_by_multiple_fields(
+                self.main_db, self.toolsmetadata_db, filter
+            )
+            exists = bool(doc and doc.get("indices"))
+            Logger.info(f"Table '{table_name}' exists: {exists}")
+            return exists
+        except Exception as e:
+            Logger.error(f"Error checking table existence: {e}")
+            return False
        

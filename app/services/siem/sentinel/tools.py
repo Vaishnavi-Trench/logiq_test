@@ -94,6 +94,7 @@ async def sentinel_choose_table(
         table_name = sentinel_utils.get_table_name_from_mongo(
             intcid, "sentinel", env, tid, question_id, step_id
         )
+        reason = "Table name found in MongoDB template."
     except Exception as mongo_e:
         Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
 
@@ -171,6 +172,7 @@ async def sentinel_choose_table(
                 )
 
             Logger.info(f"Sentinel table chosen by AI: {table_name}")
+            reason = "Table name selected by AI based on context and available tables."
         except Exception as e:
             Logger.error(
                 f"Error during Sentinel table selection: {e}\n{traceback.format_exc()}"
@@ -178,7 +180,18 @@ async def sentinel_choose_table(
             return {
                 "error": f"An unexpected error occurred during table name selection: {e}"
             }
-    return {"table_name": table_name, "env": env}
+        
+    table_status = sentinel_utils.check_table(intcid, table_name)
+    if table_status:
+        Logger.info(f"Table {table_name} is available in Sentinel.")
+        return {"table_name": table_name, "env": env}
+    else:
+        Logger.error(
+            f"Table {table_name} is not available in Sentinel. Please check the table name."
+        )
+        return {
+            "error": f"{reason} failed"
+        }
 
 
 async def get_detection_rules(intcid: str, task: str) -> dict:
