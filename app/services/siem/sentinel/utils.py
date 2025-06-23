@@ -1452,6 +1452,7 @@ class SentinelUtils:
 
         # Tiered Scoring Weights - these values define the new strict hierarchy
         TIER_SCORES = {
+            "default_config_bonus": 1000,  # Highest priority bonus for default_config tag
             "all_three_perfect": 500,  # Highest priority (Log Source + Device Type + Security Event Category)
             "log_source_only_base": 400,  # Second priority (Log Source matched)
             "device_security_only": 300,  # Third priority (Device Type + Security Event Category, without Log Source match)
@@ -1583,6 +1584,12 @@ class SentinelUtils:
                 & set(profile_security_event_categories)
             )
 
+            # Check if any tag matches (at least one condition is true)
+            has_any_match = log_source_matched or device_type_overlap or security_category_overlap
+
+            # Check if table has default_config tag
+            has_default_config = "default_config" in profile_security_event_categories
+
             # --- Apply new tiered scoring based on the strict priority ---
 
             # Priority 1: All Three (Log Source + Device Type + Security Event Category)
@@ -1607,6 +1614,10 @@ class SentinelUtils:
                     current_score += TIER_SCORES["device_type_single_fallback"]
                 if security_category_overlap:
                     current_score += TIER_SCORES["security_category_single_fallback"]
+
+            # Apply default_config bonus if there's any match and table has default_config tag
+            if has_any_match and has_default_config:
+                current_score += TIER_SCORES["default_config_bonus"]
 
             table_scores[table_name] = current_score
             Logger.debug(f"  --> Table '{table_name}' final score: {current_score}")
