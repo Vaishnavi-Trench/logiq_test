@@ -1829,7 +1829,6 @@ async def enrich_alert_context(intcid, alert_context, aid, ) -> dict:
     Enrich alert context with additional data from external sources.
     """
     Logger.info("[NODE] Executing node: enrich_alert_context")
-    print("hii")
     try:
         if not alert_context or not isinstance(alert_context, dict):
             Logger.warn("No valid alert context found to enrich")
