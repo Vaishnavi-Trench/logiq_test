@@ -16,12 +16,6 @@ pipeline {
         CLUSTER_NAME = 'trench-prod'
         CLUSTER_ZONE = 'us-central1-b'
         GCP_PROJECT_NAME = 'trench-production'
-        
-        // --- Trivy and Slack Reporting Environment Variables ---
-        GCR_REPO_FOR_SCAN = "gcr.io/${GCP_PROJECT_NAME}/docker-repo" // Base GCR repo for scanning
-        SLACK_CHANNEL = '#trench-build'
-        REPORT_FILE = 'trivy-report.json'
-        // --- END Trivy and Slack Reporting Environment Variables ---
     }
 
     stages {
@@ -70,7 +64,6 @@ pipeline {
                     }
 
                     env.DOCKER_TAG = latestTag
-                    env.FULL_IMAGE_FOR_SCAN = "${GCR_REPO_FOR_SCAN}/${REPO_NAME}:${env.DOCKER_TAG}" // Set for Trivy
                     // --- END MODIFIED ---
                 }
             }
@@ -108,90 +101,6 @@ pipeline {
             }
         }
 
-        stage('Trivy Scan') {
-            steps {
-                script {
-                    echo "Starting Trivy scan for image: ${env.FULL_IMAGE_FOR_SCAN}"
-                    // Authenticate docker for pulling the image for scan
-                    sh "gcloud auth configure-docker ${GCR_REPO_FOR_SCAN.split('/')[0]} --quiet"
-                    sh "docker pull ${env.FULL_IMAGE_FOR_SCAN}"
-                    sh "trivy image --format json -o ${env.REPORT_FILE} ${env.FULL_IMAGE_FOR_SCAN} || true"
-                }
-            }
-        }
-
-        stage('Notify Slack') {
-            steps {
-                script {
-                    def report = readJSON file: "${env.REPORT_FILE}"
-                    def vulnCount = [:]
-                    def criticalAndHighVulns = []
-
-                    (report?.Results ?: []).each { result ->
-                        (result?.Vulnerabilities ?: []).each { vuln ->
-                            def sev = vuln.Severity?.toUpperCase()
-                            if (!sev) return
-
-                            // Count by severity
-                            vulnCount[sev] = (vulnCount.get(sev) ?: 0) + 1
-
-                            // Collect CRITICAL and HIGH vulnerability details
-                            if (['CRITICAL', 'HIGH'].contains(sev)) {
-                                def pkg = vuln.PkgName ?: 'unknown-pkg'
-                                def id = vuln.VulnerabilityID ?: 'N/A'
-                                def title = (vuln.Title ?: '').toString().take(120)
-                                criticalAndHighVulns << "[${sev}] ${pkg} - ${id}: ${title}"
-                            }
-                        }
-                    }
-
-                    def status = currentBuild.currentResult ?: 'SUCCESS'
-                    def buildUrl = env.BUILD_URL ?: "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
-                    def headerEmoji = status == 'SUCCESS' ? "✅" : (status == 'FAILURE' ? "❌" : "🚀")
-                    def header = "*${headerEmoji} Build ${status}: `${env.REPO_NAME}:${env.DOCKER_TAG}`*" // Adjusted for REPO_NAME
-
-                    def msg = "${header}\n"
-                    msg += "• *Image:* `${env.FULL_IMAGE_FOR_SCAN}`\n" // Use the full image name for scan
-                    msg += "• *Report File:* `${env.REPORT_FILE}`\n"
-                    msg += "• *Build URL:* <${buildUrl}|#${env.BUILD_NUMBER}>\n\n"
-
-                    if (vulnCount) {
-                        msg += "*🛡️ Vulnerabilities:*\n"
-                        vulnCount.each { sev, count ->
-                            msg += "    - *${sev}*: ${count}\n"
-                        }
-
-                        if (criticalAndHighVulns) {
-                            msg += "\n*🔎 CRITICAL & HIGH Issues:*\n"
-                            criticalAndHighVulns.each { vulnSummary ->
-                                msg += "• ${vulnSummary}\n"
-                            }
-                        }
-                    } else {
-                        msg += "• ✅ No vulnerabilities found."
-                    }
-
-                    withCredentials([string(credentialsId: 'slack-token', variable: 'SLACK_BOT_TOKEN')]) {
-                        def payload = [
-                            channel: env.SLACK_CHANNEL,
-                            text: msg
-                        ]
-
-                        httpRequest(
-                            httpMode: 'POST',
-                            url: 'https://slack.com/api/chat.postMessage',
-                            contentType: 'APPLICATION_JSON',
-                            requestBody: groovy.json.JsonOutput.toJson(payload),
-                            customHeaders: [
-                                [name: 'Authorization', value: "Bearer ${SLACK_BOT_TOKEN}"]
-                            ],
-                            validResponseCodes: '200'
-                        )
-                    }
-                }
-            }
-        }
-
         stage('Deploy') {
             steps {
                 script {
@@ -225,11 +134,10 @@ pipeline {
         }
     }
      post {
-        always {
-            echo 'Pipeline finished.'
-            archiveArtifacts artifacts: "${env.REPORT_FILE}", fingerprint: true // Archive the Trivy report
-            // cleanWs()
-        }
+         always {
+             echo 'Pipeline finished.'
+             // cleanWs()
+         }
          success {
              echo "Pipeline successfully deployed version ${env.DOCKER_TAG}"
          }
