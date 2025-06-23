@@ -1383,6 +1383,8 @@ async def sentinel_get_alert_context(
             alert_context.get("extracted_fields", {}).get("user_name", {}).get("value")
         )
 
+        enriched_alert_context = None
+
         if user_name_value:
             # Always extract the username before '@'
             Logger.info(f"Extracting user name from value: {user_name_value}")
@@ -1393,8 +1395,9 @@ async def sentinel_get_alert_context(
             user_email = sentinel_utils.user_lookup(intcid, username)
             alert_context["extracted_fields"]["user_name"]["value"] = [username, user_email] if user_email else [username]
             Logger.info(f"Alerrt Context: {alert_context}")
-        return alert_context
+            enriched_alert_context = await enrich_alert_context(intcid, alert_context, aid)
 
+        return enriched_alert_context if enriched_alert_context else {"error": "No enriched alert context generated"}
     except Exception as e:
         Logger.error(
             f"Error during Sentinel context extraction: {e}\n{traceback.format_exc()}"
@@ -1820,5 +1823,63 @@ async def get_failed_login_details(intcid: str, alert_context: dict, task: str) 
         Logger.error(f"Error retrieving failed login details: {e}")
         return {"error": f"An error occurred while retrieving failed login details: {e}"}
     
-    
-    
+
+async def enrich_alert_context(intcid, alert_context, aid, ) -> dict:
+    """
+    Enrich alert context with additional data from external sources.
+    """
+    Logger.info("[NODE] Executing node: enrich_alert_context")
+    print("hii")
+    try:
+        if not alert_context or not isinstance(alert_context, dict):
+            Logger.warn("No valid alert context found to enrich")
+            return {
+                "alert_context": alert_context,
+                "context_enrichment_status": False
+            }
+
+        Logger.info(f"Enriching alert context for intcid: {intcid}, aid: {aid}")
+
+        enriched_context = alert_context.copy()
+        enriched_context["discovery"] = {}
+
+        task = f"Enrich alert context for aid: {aid}"
+
+        try:
+            sentinel_utils = SentinelUtils(intcid=intcid)
+
+            user_auth_result = await get_user_auth_details(intcid, alert_context, task)
+            enriched_context["discovery"]["user_auth_details"] = user_auth_result
+
+            Logger.info(f"Calling get_user_role_from_mongo for intcid: {intcid}, aid: {aid}")
+            user_role_result = await sentinel_utils.get_user_role_from_mongo(intcid, alert_context, task)
+            Logger.debug(f"User role result: {user_role_result}")
+            enriched_context["discovery"]["user_role"] = user_role_result
+
+            Logger.info(f"Calling get_user_ip_details for intcid: {intcid}, aid: {aid}")
+            ip_details_result = await get_user_ip_details(intcid, alert_context, task)
+            Logger.debug(f"IP details result: {ip_details_result}")
+            enriched_context["discovery"]["ip_details"] = ip_details_result
+
+            Logger.info(f"Calling get_ip_reputation_details for intcid: {intcid}, aid: {aid}")
+            ip_reputation_result = await sentinel_utils.get_ip_reputation_details(intcid, enriched_context, task)
+            Logger.debug(f"IP reputation result: {ip_reputation_result}")
+            enriched_context["discovery"]["ip_reputation"] = ip_reputation_result
+
+            Logger.info("Discovery field populated successfully")
+        except Exception as e:
+            Logger.error(f"Error populating discovery field: {str(e)}")
+            Logger.error(traceback.format_exc())
+
+        Logger.info("Alert context enrichment completed")
+        Logger.info(f"Final enriched alert context for intcid: {intcid}, aid: {aid}: {enriched_context}")
+
+        return enriched_context
+
+    except ImportError as e:
+        Logger.error(f"Failed to import utility functions: {str(e)}")
+        return alert_context
+    except Exception as e:
+        Logger.error(f"[enrich_alert_context] Error: {str(e)}")
+        Logger.error(traceback.format_exc())
+        return alert_context

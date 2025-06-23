@@ -13,6 +13,8 @@ import collections
 from pltfrm import PropX, Logger2 as Logger, MongoDBManager, AIManager
 from typing import List, Dict, Any
 from app.services.siem.sentinel import models as sentinel_models
+from app.services.general.iputils.tools import is_whitelist_ip, is_blocklist_ip, get_ip_type
+from app.services.intelligence.abuseipdb.tools import get_ip_reputation_report
 
 # Removed global property assignments
 
@@ -1857,4 +1859,130 @@ class SentinelUtils:
         except Exception as e:
             Logger.error(f"Error checking table existence: {e}")
             return False
-       
+
+
+    async def get_user_role_from_mongo(self, intcid: str, alert_context: dict, task: str) -> dict:
+        """
+        Get user role information using MongoDB lookup table.
+        """
+        try:
+            Logger.info(f"Getting user role for intcid: {intcid}, task: {task}")
+            user_name_info = alert_context.get("extracted_fields", {}).get("user_name", {})
+            if not user_name_info:
+                Logger.warn("No user_name found in alert_context")
+                return {"user_role_details": {}, "message": "No user_name found in alert_context"}
+            user_name_value = user_name_info.get("value", [])
+            if not user_name_value:
+                Logger.warn("No user_name value found in alert_context")
+                return {"user_role_details": {}, "message": "No user_name value found"}
+            usernames_to_try = []
+            for value in user_name_value:
+                value = value.strip()
+                if not value:
+                    continue
+                if '@' in value:
+                    username_from_email = value.split('@')[0]
+                    usernames_to_try.append(username_from_email)
+                else:
+                    usernames_to_try.append(value)
+            if not usernames_to_try:
+                Logger.warn("Could not extract valid username from user_name_value")
+                return {"user_role_details": {}, "message": "Could not extract valid username"}
+            Logger.info(f"Looking up role for usernames: {usernames_to_try}")
+            lookup_doc = MongoDBManager.get_record_by_multiple_fields(
+                "main_db", "toolsmetadata", {"intcid": intcid, "subtype": "lookup_table"}
+            )
+            if not lookup_doc:
+                Logger.warn(f"No lookup table found for intcid: {intcid}")
+                return {"user_role_details": {}, "message": f"No lookup table found for intcid: {intcid}"}
+            user_lookup_table = lookup_doc.get("user_lookup_table", {})
+            if not user_lookup_table:
+                Logger.warn(f"No user_lookup_table found in document for intcid: {intcid}")
+                return {"user_role_details": {}, "message": "No user_lookup_table found"}
+            user_info = None
+            matched_username = None
+            for username_variant in usernames_to_try:
+                user_info = user_lookup_table.get(username_variant)
+                if user_info:
+                    matched_username = username_variant
+                    Logger.info(f"Found user info using username variant: {username_variant}")
+                    break
+            if not user_info:
+                Logger.warn(f"None of the username variants {usernames_to_try} found in lookup table")
+                return {"user_role_details": {}, "message": f"Username variants {usernames_to_try} not found in lookup table"}
+            role = user_info.get("role", "unknown")
+            role_details = {"username": matched_username, "role": role}
+            Logger.info(f"Successfully retrieved user role details: {role_details}")
+            return {"user_role_details": role_details}
+        except Exception as e:
+            Logger.error(f"Error getting user role: {str(e)}")
+            Logger.error(traceback.format_exc())
+            return {"error": f"Failed to get user role: {str(e)}"}
+
+
+    async def get_ip_reputation_details(self, intcid: str, alert_context: dict, task: str) -> dict:
+        """
+        Consolidate IP reputation checks by extracting IP addresses from alert context and discovery fields.
+        """
+        try:
+            Logger.info(f"Getting IP reputation details for intcid: {intcid}, task: {task}")
+            ip_addresses = set()
+
+            # Extract IPs from extracted_fields
+            extracted_fields = alert_context.get("extracted_fields", {})
+            for field_name, field_data in extracted_fields.items():
+                if "ip" in field_name.lower() and isinstance(field_data, dict):
+                    ip_value = field_data.get("value")
+                    if ip_value and isinstance(ip_value, str):
+                        ip_addresses.add(ip_value)
+
+            # Extract IPs from discovery key
+            discovery = alert_context.get("discovery", {})
+            if discovery:
+                ip_details = discovery.get("ip_details", {})
+                if isinstance(ip_details, dict):
+                    user_ip_details = ip_details.get("user_ip_details", [])
+                    if isinstance(user_ip_details, list):
+                        for ip_detail in user_ip_details:
+                            if isinstance(ip_detail, dict):
+                                client_ip_list = ip_detail.get("client_ip_list")
+                                if client_ip_list and isinstance(client_ip_list, str):
+                                    try:
+                                        parsed_ips = json.loads(client_ip_list)
+                                        if isinstance(parsed_ips, list):
+                                            ip_addresses.update(parsed_ips)
+                                    except json.JSONDecodeError:
+                                        Logger.error(f"Failed to parse client_ip_list: {client_ip_list}")
+
+            # Extract IPs from top-level keys in alert_context
+            for key in ["source_ip", "destination_ip", "client_ip", "server_ip", "ip_address"]:
+                ip_value = alert_context.get(key)
+                if ip_value and isinstance(ip_value, str):
+                    ip_addresses.add(ip_value)
+
+            # Log extracted IPs
+            Logger.debug(f"Extracted IP addresses: {ip_addresses}")
+
+            if not ip_addresses:
+                Logger.warn("No IP addresses found in alert context")
+                return {"ip_reputation_results": {}, "message": "No IP addresses found in alert context"}
+
+            # Perform reputation checks
+            ip_reputation_results = {}
+            for ip_address in ip_addresses:
+                Logger.info(f"Performing reputation checks for IP: {ip_address}")
+                ip_results = {
+                    "ip_address": ip_address,
+                    "whitelist_check": is_whitelist_ip(ip_address, intcid),
+                    "blocklist_check": is_blocklist_ip(ip_address, intcid),
+                    "abuse_reputation": get_ip_reputation_report(intcid, ip_address),
+                    "ip_type_analysis": get_ip_type(ip_address),
+                }
+                ip_reputation_results[ip_address] = ip_results
+
+            Logger.info(f"IP reputation results: {ip_reputation_results}")
+            return {"ip_reputation_results": ip_reputation_results}
+        except Exception as e:
+            Logger.error(f"Error getting IP reputation details: {str(e)}")
+            Logger.error(traceback.format_exc())
+            return {"error": f"Failed to get IP reputation details: {str(e)}"}
