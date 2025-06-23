@@ -448,12 +448,20 @@ class FeedbackImprovementSuggestions(BaseModel):
 
 ####nteg related classes
 # sentinel related classes
+class SentinelField(BaseModel):
+    column_name: str = Field(
+        description="Name of the field in the Sentinel index"
+    )
+    description: str = Field(
+        description="Description of the field in the Sentinel index"
+    )
+    
+
 class SentinelFieldDescription(BaseModel):
     """
     Model representing a field description in Sentinel.
     """
-
-    descriptions: dict = Field(
+    descriptions: list[SentinelField] = Field(
         description="Field descriptions mapping field names to their descriptions"
     )
 
