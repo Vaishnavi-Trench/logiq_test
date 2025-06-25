@@ -30,7 +30,7 @@ async def sentinel_choose_table(
     question_id: str,
     step_id: str,
     triage_question: str,
-    alert_context: any,
+    alert_context: any
 ) -> dict:
     """Selects the appropriate Sentinel table using AI based on triage context and alert.
 
@@ -883,6 +883,32 @@ async def standalone_sentinel_prepare_kql_query(
     if not workspace_id:
         return {"error": "Failed to retrieve Workspace ID. Check configuration."}
 
+    query_template_response = AIManager.run_prompt_with_structured_output(
+        intcid=intcid,
+        prompt_template_name="VALIDATE_KQL_QUERY_TEMPLATE_PROMPT",
+        prompt_params={
+            "requirement": task,
+            "alert_context": alert_context,
+            "query_template": query_template,
+        },
+        model_name=PropX.get_property("module.llm.model"),
+        model_class=sentinel_models.QueryTemplate,
+        history_params={
+            "aid": aid,
+            "tid": tid,
+            "qid": question_id,
+            "step_id": step_id,
+            "subtype": "prepare_query_template",
+        },
+        type="triage",
+        system_prompt="You are an expert in Microsoft Sentinel and KQL. Your task is to generate a KQL query template based on the provided requirement and alert context. The output should be a valid KQL query template that can be executed against the specified table.",
+    )
+    
+    query_template_final = query_template_response.get("query_template")
+    Logger.info(f"Query Template after Validation: {query_template_final}")
+    if query_template_final:
+        query_template = query_template_final
+
     query = AIManager.run_prompt_with_structured_output(
         intcid=intcid,
         prompt_template_name="KQL_TEMPLATE_FIELD_VALUE_REPLACEMENT_PROMPT",
@@ -1075,6 +1101,10 @@ async def sentinel_run_kql_query(intcid: str, task: str, kql_query: str) -> dict
         "Authorization": f"Bearer {sentinel_utils.la_access_token.token}",
         "Content-Type": "application/json",
     }
+    
+    if not kql_query:
+        Logger.error("KQL query is empty. Cannot execute.")
+        return {"error": "KQL query is empty. Cannot execute."}
     query_payload = json.dumps({"query": kql_query})
 
     all_records = []
@@ -1823,7 +1853,6 @@ async def get_failed_login_details(intcid: str, alert_context: dict, task: str) 
         Logger.error(f"Error retrieving failed login details: {e}")
         return {"error": f"An error occurred while retrieving failed login details: {e}"}
     
-
 async def enrich_alert_context(intcid, alert_context, aid, ) -> dict:
     """
     Enrich alert context with additional data from external sources.
