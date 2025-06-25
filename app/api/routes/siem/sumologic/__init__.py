@@ -7,7 +7,7 @@ import traceback
 import json
 
 
-from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts, get_available_fields
+from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts, get_available_fields, sumologic_get_alert_context
 class SumoLogicIndicesRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
 
@@ -28,6 +28,12 @@ class SumoLogicSystemMonitorsRequest(BaseModel):
 class SumoLogicFieldsRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
     index_name: str = Field(..., description="Index to fetch fields from")
+    
+    
+class SumoLogicAlertContextRequest(BaseModel):
+    task: str = Field(..., description="Task identifier for logging")
+    alert: Dict[str, Any] = Field(..., description="Alert data to extract context from")
+    aid: str = Field(..., description="Alert ID for logging purposes")
     
 router = APIRouter(tags=["sumologic"])
 
@@ -131,4 +137,36 @@ async def fetch_security_alerts_route(
             status_code=500,
             content={"error": f"Failed to get system alerts from sumologic: {str(e)}"},
         )
+
+@router.post("/get_alert_context/{intcid}")
+async def get_alert_context_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: SumoLogicAlertContextRequest = Body(..., description="Request body containing task and alert data to extract context from")
+):
+    """
+    Get alert context from SumoLogic.
+    """
+    try:
+        task = request.task
+        Logger.info(f"Task: {task} - Integration ID: {intcid}")
+        alert = request.alert
+        aid = request.aid
+        Logger.info(f"Extracting alert context for intcid {intcid}")
+        result = await sumologic_get_alert_context(intcid=intcid, task=task, aid=aid, alert=alert)
+        return result
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error getting alert context {str(e)}")
+        Logger.error(
+            f"Error in get_alert_context: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get alert context from sumologic: {str(e)}"},
+        )
+
+
+
+
+
+
 

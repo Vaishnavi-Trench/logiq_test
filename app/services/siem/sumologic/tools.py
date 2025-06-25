@@ -7,12 +7,17 @@ import time
 from datetime import datetime, timedelta
 # Import platform components
 from pltfrm import (
+    PropX,
+    AIManager,
     Logger2 as Logger,
 )
 
 from app.services.siem.sumologic.utils import (
     SumoLogicUtils
 )
+
+from app.services.siem.sumologic import models as sumologic_models
+
 
 async def get_available_indices(intcid: str, task:str) -> dict:
     """
@@ -54,7 +59,6 @@ async def get_available_indices(intcid: str, task:str) -> dict:
         Logger.error(traceback.format_exc())
         return {"error": "indices_fetch_error", "message": str(e)}
     
-
 async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
     """
     Get all available fields in SumoLogic using the Fields API.
@@ -262,7 +266,6 @@ async def sumologic_run_sql_query(
         Logger.error(f"Unexpected error running query: {str(e)}")
         return None
     
-    
 async def fetch_security_alerts(
     intcid: str,
     task: str,
@@ -303,3 +306,55 @@ async def fetch_security_alerts(
     return {
         "security_alerts_data": alerts_created
     }
+
+async def sumologic_get_alert_context(
+    intcid: str,
+    task: str,
+    aid: str,
+    alert: dict
+):
+    """
+    Get context for a specific alert by its ID.
+
+    Args:
+        intcid (str): Integration ID
+        task (str): Task identifier for logging
+        aid (str): Alert ID
+        alert (dict): Alert data
+
+    Returns:
+        dict: Context information for the alert
+    """
+    Logger.info(f"Task: {task} - Integration ID: {intcid}")
+    Logger.info(f"Fetching context for alert ID: {aid}")
+
+    try:
+        env = "unknown"
+        alert_context = AIManager.run_prompt_with_structured_output(
+            intcid=intcid,
+            prompt_template_name="SUMOLOGIC_ALERT_CONTEXT_EXTRACTION_PROMPT",
+            prompt_params={
+                "alert": json.dumps(alert),  # This now contains either the original alert/incident or the list of fetched alerts
+                "env": env,
+                "requirement": task,
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=sumologic_models.AlertContextResponse,
+            history_params={
+                "aid": aid,
+                "subtype": "alert_context",
+            },
+            type="triage",
+            system_prompt="You are an expert in understanding Sumologic Alerts. Your task is to extract context parameters from given input which included received alert.",
+        )
+
+        Logger.info(f"AI response for context extraction: {alert_context}")
+        sumo_logic_utils = SumoLogicUtils(intcid=intcid)
+        alert_context = sumo_logic_utils.transform_alert_context(input_data=alert_context)
+        alert_context["env"] = env  # Ensure env is included
+        return alert_context
+        
+    except Exception as e:
+        Logger.error(f"Error fetching alert context: {str(e)}")
+        Logger.error(traceback.format_exc())
+        return {"error": "alert_context_fetch_error", "message": str(e)}

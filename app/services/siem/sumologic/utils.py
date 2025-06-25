@@ -71,3 +71,56 @@ class SumoLogicUtils:
                     for item in v:
                         fields.update(self.extract_field_names(item, full_key))
         return fields
+    
+    def transform_alert_context(self, input_data: dict) -> dict:
+        """Transforms the alert context structure.
+
+        Converts the 'extracted_fields' list into a dictionary keyed by the 'id'
+        of each field, removing the 'id' key from the nested dictionaries.
+
+        Args:
+            input_data: The dictionary containing the alert context, potentially
+                        nested under the 'alert_context' key.
+
+        Returns:
+            The transformed dictionary.
+        """
+        if "alert_context" not in input_data:
+            Logger.warn("transform_alert_context: 'alert_context' key not found in input.")
+            return input_data  # Return original if structure is unexpected
+
+        alert_context_data = input_data["alert_context"]
+
+        if "extracted_fields" not in alert_context_data or not isinstance(
+            alert_context_data["extracted_fields"], list
+        ):
+            Logger.warn(
+                "transform_alert_context: 'extracted_fields' is not a list or not found."
+            )
+            # Return the structure as is if extracted_fields is missing or not a list
+            return input_data
+
+        original_fields = alert_context_data.get("extracted_fields", [])
+        transformed_fields = {}
+
+        for field in original_fields:
+            if isinstance(field, dict) and "id" in field:
+                field_id = field.get("id")
+                if field_id:  # Ensure id is not empty or None
+                    field_copy = field.copy()
+                    del field_copy["id"]  # Remove the id key
+                    transformed_fields[field_id] = field_copy
+                else:
+                    Logger.warn(
+                        f"transform_alert_context: Found field with missing/empty id: {field}"
+                    )
+            else:
+                Logger.warn(
+                    f"transform_alert_context: Skipping invalid field format: {field}"
+                )
+
+        # Replace the list with the new dictionary structure within the nested alert_context
+        alert_context_data["extracted_fields"] = transformed_fields
+
+        # Return the modified top-level structure
+        return input_data["alert_context"]
