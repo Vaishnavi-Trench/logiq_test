@@ -386,8 +386,8 @@ class AIManager(Singleton):
             raise e
 
     @staticmethod
-    def run_prompt_with_structured_output_direct(
-        system_prompt, user_prompt, model_name, model_class
+    def run_prompt_with_structured_output_with_params(
+        system_prompt, user_prompt, model_name, model_class, temp, top_p
     ):
         """
         Run a prompt and return the structured output, leveraging instructor's retry mechanism.
@@ -422,6 +422,8 @@ class AIManager(Singleton):
                     {"role": "user", "content": user_prompt},
                 ],
                 max_retries=max_retries_for_call,
+                temperature=temp,
+                top_p=top_p,
             )
 
             return response

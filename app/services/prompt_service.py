@@ -9,6 +9,8 @@ def execute_prompt(
     model_name: str,
     system_prompt: str,
     user_prompt: str,
+    temp: float,
+    top_p: float,
     model_class: str = None,
 ) -> Any:  # Change return type from str to Any
     """
@@ -35,11 +37,13 @@ def execute_prompt(
             module = importlib.import_module(module_path)
             class_obj = getattr(module, class_name)
 
-            return AIManager.run_prompt_with_structured_output_direct(
+            return AIManager.run_prompt_with_structured_output_with_params(
                 system_prompt,
                 user_prompt,
                 model_name,
                 class_obj,
+                temp=temp,
+                top_p=top_p,
             )
         except (ImportError, AttributeError, ValueError) as e:
             Logger.error(f"Failed to load model class {model_class}: {str(e)}")

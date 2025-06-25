@@ -16,6 +16,8 @@ class ExecutePromptRequest(BaseModel):
     model_class: Optional[str] = Field(
         None, description="model class to use for executing prompt."
     )
+    temp: float = Field(1.0, description="temperature parameter for model execution.")
+    top_p: float = Field(1.0, description="top_p parameter for model execution.")
 
 
 @router.post("/execute/{intcid}", response_model=Any)
@@ -36,6 +38,8 @@ async def execute_route(
         request.system_prompt,
         request.user_prompt,
         model_class=request.model_class,
+        temp=request.temp,
+        top_p=request.top_p,
     )
 
     return response
