@@ -1252,14 +1252,41 @@ class SentinelUtils:
             A list of extracted placeholder keys (the 'PlaceholderKey' part).
             Returns an empty list if no such placeholders are found.
         """
-        # Regex to find <<field.PlaceholderKey>> and capture 'PlaceholderKey'
-        # It looks for:
-        # - "<<field." literal string (dot is escaped)
+        # Regex to find <<field." literal string (dot is escaped)
         # - Then captures one or more characters that are not ">" (([^>]+)) - this is the PlaceholderKey
         # - Followed by ">>" literal string
         pattern = r"<<field\.([^>]+)>>"
 
         extracted_keys = re.findall(pattern, query_template)
+
+        return extracted_keys
+    
+    
+    def extract_alert_placeholders(self, query_template: str) -> list[str]:
+        """
+        Extracts placeholder keys from <<alert.PlaceholderKey>> style placeholders
+        in a KQL query template string.
+
+        Args:
+            query_template: The KQL query template string.
+
+        Returns:
+            A list of extracted placeholder keys (the 'PlaceholderKey' part).
+            Returns an empty list if no such placeholders are found.
+        """
+        # Regex to find <<alert.PlaceholderKey>> and capture 'PlaceholderKey'
+        # It looks for:
+        # - "<<alert." literal string (dot is escaped)
+        # - Then captures one or more characters that are not ">" (([^>]+)) - this is the PlaceholderKey
+        # - Followed by ">>" literal string
+        
+        Logger.debug(f"Extracting alert placeholders from query template: {query_template}")
+        
+        pattern = r"<<[aA]lert\.([^\>]+)>>"
+
+        extracted_keys = re.findall(pattern, query_template)
+        
+        extracted_keys = list(set(extracted_keys))
 
         return extracted_keys
 
