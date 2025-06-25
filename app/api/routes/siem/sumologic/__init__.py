@@ -7,7 +7,7 @@ import traceback
 import json
 
 
-from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts
+from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts, get_available_fields
 class SumoLogicIndicesRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
 
@@ -25,6 +25,10 @@ class SumoLogicSystemMonitorsRequest(BaseModel):
     start_time: Optional[str] = Field(None, description="Start time for the query")
     end_time: Optional[str] = Field(None, description="End time for the query")
 
+class SumoLogicFieldsRequest(BaseModel):
+    task: str = Field(..., description="Task identifier for logging")
+    index_name: str = Field(..., description="Index to fetch fields from")
+    
 router = APIRouter(tags=["sumologic"])
 
 @router.post("/get_indices/{intcid}")
@@ -50,6 +54,30 @@ async def get_indices(
             content={"error": f"Failed to get indices from sumologic: {str(e)}"},
         )
         
+@router.post("/get_fields/{intcid}")
+async def get_fields(
+    intcid: str = Path(..., description="Customer ID"),
+    request: SumoLogicFieldsRequest = Body(..., description="Request body containing task and indices to fetch fields from")
+):
+    """
+    Get all available fields in SumoLogic using the Partitions API.
+    """
+    try:
+        task = request.task
+        index_name = request.index_name
+        Logger.info(f"Task: {task} - Integration ID: {intcid}")
+        Logger.info(f"Fetching fields for indices {index_name} with task {task}")
+        fields = await get_available_fields(intcid=intcid, task=task, index_name=index_name)
+        return fields
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error getting fields {str(e)}")
+        Logger.error(
+            f"Error in get_fields: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to get fields from sumologic: {str(e)}"},
+        )
         
 @router.post("/run_query/{intcid}")
 async def run_query_route(

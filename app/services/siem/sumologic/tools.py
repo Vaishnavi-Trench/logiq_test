@@ -54,7 +54,57 @@ async def get_available_indices(intcid: str, task:str) -> dict:
         Logger.error(traceback.format_exc())
         return {"error": "indices_fetch_error", "message": str(e)}
     
+
+async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
+    """
+    Get all available fields in SumoLogic using the Fields API.
     
+    Args:
+        intcid (str): Integration ID
+        task (str): Task identifier for logging
+
+    Returns:
+        dict: List of field names and a sample record
+    """
+    Logger.info(f"Task: {task} - Integration ID: {intcid}")
+    Logger.info("Fetching available fields using the Fields API")
+    
+    query = f"_index={index_name} | limit 1"
+    sumo_logic_utils = SumoLogicUtils(intcid=intcid)
+    try:
+        response = await sumologic_run_sql_query(
+            intcid=intcid,
+            task=task,
+            query=query,
+            from_time=None,  # Use default time range
+            to_time=None,    # Use default time range
+            timezone="UTC",
+            wait_time=5,
+            max_wait_iterations=60
+        )
+        
+        if not response or "query_results" not in response:
+            Logger.error("No results returned from SumoLogic query")
+            return {"error": "no_results", "message": "No fields found"}
+
+        results = response.get("query_results", [])
+        if not results:
+            Logger.error("Query results are empty")
+            return {"error": "no_results", "message": "No fields found"}
+
+        sample_record = results[0]
+        fields = sumo_logic_utils.extract_field_names(sample_record)
+
+        Logger.info(f"Found {len(fields)} fields in index {index_name}")
+        return {
+            "fields": list(fields),
+            "sample_record": sample_record
+        }
+    except Exception as e:
+        Logger.error(f"Error fetching fields: {str(e)}")
+        Logger.error(traceback.format_exc())
+        return {"error": "fields_fetch_error", "message": str(e)}
+
 async def sumologic_run_sql_query(
     intcid: str,
     task: str,
@@ -114,6 +164,7 @@ async def sumologic_run_sql_query(
         Logger.info(f"Submitting SumoLogic search job: {payload}")
         # Use session.post instead of requests.post
         response = session.post(search_job_url, json=payload)
+        
         response.raise_for_status()
         job_id = response.json().get("id")
 
@@ -134,6 +185,9 @@ async def sumologic_run_sql_query(
                 # Use session.get instead of requests.get
                 status_response = session.get(status_url)
 
+                # Log the raw response at every state
+                Logger.info(f"Raw job status response: {status_response.text}")
+
                 # With a session, a 404 is now less likely to be a transient issue and more likely
                 # to be a real problem, but we'll still handle it gracefully.
                 if status_response.status_code == 404:
@@ -150,7 +204,7 @@ async def sumologic_run_sql_query(
                     result_count = job_status.get("messageCount", 0)
                     if result_count == 0:
                         Logger.info("Query returned no results.")
-                        return []
+                        return {"query_results": []}
 
                     all_parsed_results = []
                     # Use a bigger limit to be more efficient. Max is 10000.
@@ -160,6 +214,8 @@ async def sumologic_run_sql_query(
                     for offset in range(0, result_count, limit):
                         results_params = {"offset": offset, "limit": limit}
                         results_response = session.get(results_url, params=results_params)
+                        # Log the raw response for results as well
+                        Logger.info(f"Raw results response (offset {offset}): {results_response.text}")
                         results_response.raise_for_status()
                         results_data = results_response.json().get('messages', [])
 

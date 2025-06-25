@@ -56,4 +56,18 @@ class SumoLogicUtils:
             raise ValueError("Access ID is not set for this integration.")
         return self.access_id
     
-    
+    def extract_field_names(self, record, prefix=""):
+        """
+        Recursively extract all unique field names from a dict (including nested).
+        """
+        fields = set()
+        if isinstance(record, dict):
+            for k, v in record.items():
+                full_key = f"{prefix}.{k}" if prefix else k
+                fields.add(full_key)
+                if isinstance(v, dict):
+                    fields.update(self.extract_field_names(v, full_key))
+                elif isinstance(v, list):
+                    for item in v:
+                        fields.update(self.extract_field_names(item, full_key))
+        return fields
