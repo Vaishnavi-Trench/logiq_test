@@ -120,77 +120,6 @@ pipeline {
             }
         }
 
-        stage('Notify Slack') {
-            steps {
-                script {
-                    def report = readJSON file: "${env.REPORT_FILE}"
-                    def vulnCount = [:]
-                    def criticalAndHighVulns = []
-
-                    (report?.Results ?: []).each { result ->
-                        (result?.Vulnerabilities ?: []).each { vuln ->
-                            def sev = vuln.Severity?.toUpperCase()
-                            if (!sev) return
-
-                            // Count by severity
-                            vulnCount[sev] = (vulnCount.get(sev) ?: 0) + 1
-
-                            // Collect CRITICAL and HIGH vulnerability details
-                            if (['CRITICAL', 'HIGH'].contains(sev)) {
-                                def pkg = vuln.PkgName ?: 'unknown-pkg'
-                                def id = vuln.VulnerabilityID ?: 'N/A'
-                                def title = (vuln.Title ?: '').toString().take(120)
-                                criticalAndHighVulns << "[${sev}] ${pkg} - ${id}: ${title}"
-                            }
-                        }
-                    }
-
-                    def status = currentBuild.currentResult ?: 'SUCCESS'
-                    def buildUrl = env.BUILD_URL ?: "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
-                    def headerEmoji = status == 'SUCCESS' ? "✅" : (status == 'FAILURE' ? "❌" : "🚀")
-                    def header = "*${headerEmoji} Build ${status}: `${env.REPO_NAME}:${env.DOCKER_TAG}`*" // Adjusted for REPO_NAME
-
-                    def msg = "${header}\n"
-                    msg += "• *Image:* `${env.FULL_IMAGE_FOR_SCAN}`\n" // Use the full image name for scan
-                    msg += "• *Report File:* `${env.REPORT_FILE}`\n"
-                    msg += "• *Build URL:* <${buildUrl}|#${env.BUILD_NUMBER}>\n\n"
-
-                    if (vulnCount) {
-                        msg += "*🛡️ Vulnerabilities:*\n"
-                        vulnCount.each { sev, count ->
-                            msg += "    - *${sev}*: ${count}\n"
-                        }
-
-                        if (criticalAndHighVulns) {
-                            msg += "\n*🔎 CRITICAL & HIGH Issues:*\n"
-                            criticalAndHighVulns.each { vulnSummary ->
-                                msg += "• ${vulnSummary}\n"
-                            }
-                        }
-                    } else {
-                        msg += "• ✅ No vulnerabilities found."
-                    }
-
-                    withCredentials([string(credentialsId: 'slack-token', variable: 'SLACK_BOT_TOKEN')]) {
-                        def payload = [
-                            channel: env.SLACK_CHANNEL,
-                            text: msg
-                        ]
-
-                        httpRequest(
-                            httpMode: 'POST',
-                            url: 'https://slack.com/api/chat.postMessage',
-                            contentType: 'APPLICATION_JSON',
-                            requestBody: groovy.json.JsonOutput.toJson(payload),
-                            customHeaders: [
-                                [name: 'Authorization', value: "Bearer ${SLACK_BOT_TOKEN}"]
-                            ],
-                            validResponseCodes: '200'
-                        )
-                    }
-                }
-            }
-        }
 
         stage('Deploy') {
             steps {
@@ -224,17 +153,95 @@ pipeline {
             }
         }
     }
-     post {
-        always {
-            echo 'Pipeline finished.'
-            archiveArtifacts artifacts: "${env.REPORT_FILE}", fingerprint: true // Archive the Trivy report
-            // cleanWs()
+
+
+post {
+    always {
+        script {
+            def buildStatus = currentBuild.result ?: 'SUCCESS' // Reflects overall build result
+            def headerEmoji = (buildStatus == 'SUCCESS') ? "✅" : "❌"
+            def imageTag = "${env.REPO_NAME}:${env.DOCKER_TAG}"
+            def buildUrl = env.BUILD_URL ?: "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
+            def fullImage = "${env.FULL_IMAGE_FOR_SCAN}"
+            def reportFile = "${env.REPORT_FILE}"
+
+            def msg = "*${headerEmoji} Build ${buildStatus}:* `${imageTag}`\n"
+            msg += "• *Image:* `${fullImage}`\n"
+            msg += "• *Report File:* `${reportFile}`\n"
+            msg += "• *Build URL:* <${buildUrl}|#${env.BUILD_NUMBER}>\n\n"
+
+            // Parse Trivy report
+            def vulnCount = [:]
+            def criticalAndHighVulns = []
+
+            try {
+                def report = readJSON file: reportFile
+
+                (report?.Results ?: []).each { result ->
+                    (result?.Vulnerabilities ?: []).each { vuln ->
+                        def sev = vuln.Severity?.toUpperCase()
+                        if (!sev) return
+                        vulnCount[sev] = (vulnCount.get(sev) ?: 0) + 1
+
+                        if (['CRITICAL', 'HIGH'].contains(sev)) {
+                            def pkg = vuln.PkgName ?: 'unknown-pkg'
+                            def id = vuln.VulnerabilityID ?: 'N/A'
+                            def title = (vuln.Title ?: '').toString().take(150)
+                            criticalAndHighVulns << "• [${sev}] ${pkg} - ${id}: ${title}"
+                        }
+                    }
+                }
+
+                if (vulnCount) {
+                    msg += "🛡️ Vulnerabilities:\n"
+                    ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'].each { sev ->
+                        if (vulnCount[sev]) {
+                            msg += "    - ${sev}: ${vulnCount[sev]}\n"
+                        }
+                    }
+
+                    if (criticalAndHighVulns) {
+                        msg += "🔎 CRITICAL & HIGH Issues:\n"
+                        msg += criticalAndHighVulns.join('\n')
+                    }
+                } else {
+                    msg += "• ✅ No vulnerabilities found."
+                }
+
+            } catch (err) {
+                msg += "⚠️ Trivy report could not be parsed or was not generated.\n"
+            }
+
+            // Send to Slack
+            withCredentials([string(credentialsId: 'slack-token', variable: 'SLACK_BOT_TOKEN')]) {
+                def payload = [
+                    channel: env.SLACK_CHANNEL,
+                    text: msg
+                ]
+
+                httpRequest(
+                    httpMode: 'POST',
+                    url: 'https://slack.com/api/chat.postMessage',
+                    contentType: 'APPLICATION_JSON',
+                    requestBody: groovy.json.JsonOutput.toJson(payload),
+                    customHeaders: [
+                        [name: 'Authorization', value: "Bearer ${SLACK_BOT_TOKEN}"]
+                    ],
+                    validResponseCodes: '200'
+                )
+            }
         }
-         success {
-             echo "Pipeline successfully deployed version ${env.DOCKER_TAG}"
-         }
-         failure {
-             echo "Pipeline failed. Check logs for details."
-         }
-     }
+
+        echo 'Pipeline finished.'
+        archiveArtifacts artifacts: "${env.REPORT_FILE}", fingerprint: true // Archive the Trivy report
+        // cleanWs()
+    }
+    success {
+        echo "Pipeline successfully deployed version ${env.DOCKER_TAG}"
+    }
+    failure {
+        echo "Pipeline failed. Check logs for details."
+        // The Slack notification stage already handles failure notification.
+    }
+}
 }
