@@ -1427,7 +1427,12 @@ async def sentinel_get_alert_context(
             Logger.info(f"Alerrt Context: {alert_context}")
             enriched_alert_context = await enrich_alert_context(intcid, alert_context, aid)
 
-        return enriched_alert_context if enriched_alert_context else {"error": "No enriched alert context generated"}
+        if enriched_alert_context:
+            Logger.info("Successfully enriched alert context with user details.")
+            return enriched_alert_context
+        else:
+            Logger.info("No user enrichment performed. Returning basic alert context.")
+            return alert_context
     except Exception as e:
         Logger.error(
             f"Error during Sentinel context extraction: {e}\n{traceback.format_exc()}"
