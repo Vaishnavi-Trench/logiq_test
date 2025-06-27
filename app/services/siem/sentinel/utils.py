@@ -1949,7 +1949,7 @@ class SentinelUtils:
 
     async def get_ip_reputation_details(self, intcid: str, alert_context: dict, task: str) -> dict:
         """
-        Consolidate IP reputation checks by extracting IP addresses from alert context and discovery fields.
+        Consolidate
         """
         try:
             Logger.info(f"Getting IP reputation details for intcid: {intcid}, task: {task}")
@@ -2013,3 +2013,243 @@ class SentinelUtils:
             Logger.error(f"Error getting IP reputation details: {str(e)}")
             Logger.error(traceback.format_exc())
             return {"error": f"Failed to get IP reputation details: {str(e)}"}
+
+    def transform_discovery_to_extracted_fields(self, discovery_data: dict, remove_discovery: bool = True) -> dict:
+        """
+        Transform discovery data into extracted_fields format.
+        Only adds fields if the corresponding context data is present and valid.
+        
+        Args:
+            discovery_data: Dictionary containing discovery information
+            remove_discovery: If True, indicates that discovery should be removed after transformation
+            
+        Returns:
+            Dictionary with 'extracted_fields' containing fields to be added to alert context
+            and 'remove_discovery' flag indicating whether to remove discovery data
+        """
+        Logger.info("Starting transformation of discovery data to extracted_fields format")
+        Logger.debug(f"Input discovery data structure: {list(discovery_data.keys()) if discovery_data else 'No discovery data'}")
+        
+        if not discovery_data or not isinstance(discovery_data, dict):
+            Logger.warn("No valid discovery data provided for transformation")
+            return {"extracted_fields": {}, "remove_discovery": False}
+        
+        extracted_fields = {}
+        fields_added = 0
+        
+        try:
+            # Transform User Role Data
+            user_role_data = discovery_data.get("user_role", {})
+            if user_role_data and isinstance(user_role_data, dict):
+                user_role_details = user_role_data.get("user_role_details", {})
+                if user_role_details and isinstance(user_role_details, dict):
+                    username = user_role_details.get("username")
+                    role = user_role_details.get("role")
+                    
+                    if username and role:
+                        extracted_fields["discovery_user_role"] = {
+                            "description": f"User role from MongoDB lookup for user: {username}",
+                            "field_name": "role",
+                            "value": role,
+                            "confidence": "high"
+                        }
+                        fields_added += 1
+                        Logger.info(f"Added user role field for username: {username}, role: {role}")
+                    else:
+                        Logger.debug("User role details present but missing username or role values")
+                else:
+                    Logger.debug("User role data present but no valid user_role_details found")
+            else:
+                Logger.debug("No user role data found in discovery")
+            
+            # Transform User Authentication Details
+            user_auth_data = discovery_data.get("user_auth_details", {})
+            if user_auth_data and isinstance(user_auth_data, dict):
+                # Check if there's meaningful auth data (not just empty structures)
+                if any(key in user_auth_data for key in ["user_auth_details", "authentication_events", "login_events"]):
+                    auth_summary = self._extract_auth_summary(user_auth_data)
+                    if auth_summary:
+                        extracted_fields["discovery_user_auth"] = {
+                            "description": "User authentication details from discovery analysis",
+                            "field_name": "user_auth_details",
+                            "value": json.dumps(auth_summary),
+                            "confidence": "high"
+                        }
+                        fields_added += 1
+                        Logger.info(f"Added user authentication field with summary: {auth_summary}")
+                    else:
+                        Logger.debug("User auth data present but no meaningful authentication information found")
+                else:
+                    Logger.debug("User auth data structure present but no authentication details found")
+            else:
+                Logger.debug("No user authentication data found in discovery")
+            
+            # Transform IP Details
+            ip_details_data = discovery_data.get("ip_details", {})
+            if ip_details_data and isinstance(ip_details_data, dict):
+                user_ip_details = ip_details_data.get("user_ip_details", [])
+                if user_ip_details and isinstance(user_ip_details, list) and len(user_ip_details) > 0:
+                    # Extract meaningful IP information
+                    ip_summary = self._extract_ip_summary(user_ip_details)
+                    if ip_summary:
+                        extracted_fields["discovery_ip_details"] = {
+                            "description": "Detailed IP information from user activity analysis",
+                            "field_name": "user_ip_details",
+                            "value": json.dumps(ip_summary),
+                            "confidence": "high"
+                        }
+                        fields_added += 1
+                        Logger.info(f"Added IP details field with {len(ip_summary.get('ip_addresses', []))} IP addresses")
+                    else:
+                        Logger.debug("IP details data present but no meaningful IP information found")
+                else:
+                    Logger.debug("IP details structure present but no user_ip_details found")
+            else:
+                Logger.debug("No IP details data found in discovery")
+            
+            # Transform IP Reputation Data - Aggregate all IP reputation into a single field
+            ip_reputation_data = discovery_data.get("ip_reputation", {})
+            if ip_reputation_data and isinstance(ip_reputation_data, dict):
+                ip_reputation_results = ip_reputation_data.get("ip_reputation_results", {})
+                if ip_reputation_results and isinstance(ip_reputation_results, dict) and len(ip_reputation_results) > 0:
+                    Logger.debug(f"Processing IP reputation data for {len(ip_reputation_results)} IP addresses")
+                    
+                    # Aggregate all IP reputation data into a list format (no IP addresses as keys)
+                    aggregated_reputation = []
+                    for ip_address, reputation_info in ip_reputation_results.items():
+                        if reputation_info and isinstance(reputation_info, dict):
+                            # Extract meaningful reputation summary
+                            reputation_summary = self._extract_reputation_summary(reputation_info)
+                            if reputation_summary:
+                                aggregated_reputation.append(reputation_summary)
+                                Logger.debug(f"Added reputation data for IP {ip_address}")
+                            else:
+                                Logger.debug(f"IP reputation data present for {ip_address} but no meaningful reputation information")
+                        else:
+                            Logger.debug(f"IP reputation entry for {ip_address} is not valid")
+                    
+                    # Only add the field if we have meaningful reputation data
+                    if aggregated_reputation:
+                        reputation_summary_data = {
+                            "total_ips_analyzed": len(aggregated_reputation),
+                            "reputation_results": aggregated_reputation
+                        }
+                        extracted_fields["discovery_ip_reputation"] = {
+                            "description": f"IP reputation analysis results for {len(aggregated_reputation)} IP addresses",
+                            "field_name": "ip_reputation_results",
+                            "value": json.dumps(reputation_summary_data),
+                            "confidence": "medium"
+                        }
+                        fields_added += 1
+                        Logger.info(f"Added aggregated IP reputation field for {len(aggregated_reputation)} IP addresses")
+                    else:
+                        Logger.debug("No meaningful IP reputation data found to aggregate")
+                else:
+                    Logger.debug("IP reputation structure present but no reputation results found")
+            else:
+                Logger.debug("No IP reputation data found in discovery")
+            
+            Logger.info(f"Discovery transformation completed: {fields_added} fields added to extracted_fields")
+            Logger.debug(f"Added field IDs: {list(extracted_fields.keys())}")
+            
+            return {
+                "extracted_fields": extracted_fields,
+                "remove_discovery": remove_discovery and len(extracted_fields) > 0
+            }
+            
+        except Exception as e:
+            Logger.error(f"Error during discovery data transformation: {str(e)}")
+            Logger.error(traceback.format_exc())
+            return {"extracted_fields": {}, "remove_discovery": False}
+    
+    def _extract_auth_summary(self, auth_data: dict) -> dict:
+        """Extract meaningful authentication summary from auth data."""
+        try:
+            summary = {}
+            
+            # Extract basic auth details
+            if "user_auth_details" in auth_data and auth_data["user_auth_details"]:
+                auth_details = auth_data["user_auth_details"]
+                if isinstance(auth_details, list) and len(auth_details) > 0:
+                    summary["total_auth_events"] = len(auth_details)
+                    summary["first_event"] = auth_details[0] if auth_details else None
+                elif isinstance(auth_details, dict):
+                    summary.update(auth_details)
+            
+            # Only return summary if it has meaningful data
+            return summary if summary else None
+            
+        except Exception as e:
+            Logger.debug(f"Error extracting auth summary: {e}")
+            return None
+    
+    def _extract_ip_summary(self, ip_details: list) -> dict:
+        """Extract meaningful IP summary from IP details list."""
+        try:
+            ip_addresses = set()
+            client_ips = set()
+            
+            for ip_detail in ip_details:
+                if isinstance(ip_detail, dict):
+                    # Extract client IP list
+                    client_ip_list = ip_detail.get("client_ip_list")
+                    if client_ip_list:
+                        if isinstance(client_ip_list, str):
+                            try:
+                                parsed_ips = json.loads(client_ip_list)
+                                if isinstance(parsed_ips, list):
+                                    client_ips.update(parsed_ips)
+                            except json.JSONDecodeError:
+                                Logger.debug(f"Failed to parse client_ip_list: {client_ip_list}")
+                        elif isinstance(client_ip_list, list):
+                            client_ips.update(client_ip_list)
+                    
+                    # Extract other IP fields
+                    for key, value in ip_detail.items():
+                        if "ip" in key.lower() and isinstance(value, str) and value:
+                            ip_addresses.add(value)
+            
+            summary = {}
+            if ip_addresses:
+                summary["ip_addresses"] = list(ip_addresses)
+            if client_ips:
+                summary["client_ips"] = list(client_ips)
+            
+            # Only return summary if it has meaningful data
+            return summary if summary else None
+            
+        except Exception as e:
+            Logger.debug(f"Error extracting IP summary: {e}")
+            return None
+    
+    def _extract_reputation_summary(self, reputation_info: dict) -> dict:
+        """Extract meaningful reputation summary from reputation info."""
+        try:
+            summary = {}
+            
+            # Extract key reputation indicators
+            if "ip_address" in reputation_info:
+                summary["ip_address"] = reputation_info["ip_address"]
+            
+            if "whitelist_check" in reputation_info:
+                summary["is_whitelisted"] = reputation_info["whitelist_check"]
+            
+            if "blocklist_check" in reputation_info:
+                summary["is_blocklisted"] = reputation_info["blocklist_check"]
+            
+            if "abuse_reputation" in reputation_info:
+                abuse_data = reputation_info["abuse_reputation"]
+                if abuse_data and isinstance(abuse_data, dict):
+                    summary["abuse_reputation"] = abuse_data
+            
+            if "ip_type_analysis" in reputation_info:
+                ip_type = reputation_info["ip_type_analysis"]
+                if ip_type:
+                    summary["ip_type"] = ip_type
+            
+            # Only return summary if it has meaningful data
+            return summary if len(summary) > 1 else None  # More than just ip_address
+            
+        except Exception as e:
+            Logger.debug(f"Error extracting reputation summary: {e}")
+            return None

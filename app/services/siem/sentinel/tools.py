@@ -1904,6 +1904,34 @@ async def enrich_alert_context(intcid, alert_context, aid, ) -> dict:
             Logger.error(f"Error populating discovery field: {str(e)}")
             Logger.error(traceback.format_exc())
 
+        try:
+            transformation_result = sentinel_utils.transform_discovery_to_extracted_fields(
+                enriched_context.get("discovery", {})
+            )
+            
+            discovery_fields = transformation_result.get("extracted_fields", {})
+            should_remove_discovery = transformation_result.get("remove_discovery", False)
+            
+            if discovery_fields:
+                # Merge discovery fields into existing extracted_fields
+                if "extracted_fields" not in enriched_context:
+                    enriched_context["extracted_fields"] = {}
+                
+                enriched_context["extracted_fields"].update(discovery_fields)
+                Logger.info(f"Successfully merged {len(discovery_fields)} discovery fields into extracted_fields")
+                Logger.debug(f"Added discovery field keys: {list(discovery_fields.keys())}")
+                
+                # Remove discovery dictionary if transformation was successful and flag is set
+                if should_remove_discovery and "discovery" in enriched_context:
+                    del enriched_context["discovery"]
+                    Logger.info("Removed discovery dictionary from enriched context after successful transformation")
+            else:
+                Logger.info("No discovery fields to add to extracted_fields")
+                
+        except Exception as e:
+            Logger.error(traceback.format_exc())
+            # Continue processing even if transformation fails
+
         Logger.info("Alert context enrichment completed")
         Logger.info(f"Final enriched alert context for intcid: {intcid}, aid: {aid}: {enriched_context}")
 
