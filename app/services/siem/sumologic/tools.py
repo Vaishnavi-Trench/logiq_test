@@ -12,6 +12,7 @@ from pltfrm import (
     PropX,
     AIManager,
     Logger2 as Logger,
+    MongoDBManager
 )
 
 from app.services.siem.sumologic.utils import (
@@ -21,23 +22,23 @@ from app.services.siem.sumologic.utils import (
 from app.services.siem.sumologic import models as sumologic_models
 
 
-# List of regex patterns to ignore
-IGNORANCE_REGEX_LIST = [
-    r"_tmp.*",
-    r"debug.*",
-    r".*_internal",
-    r"test.*",
-    r"WINDOWS-.*",
-    r"LAPTOP-.*",
-    r"windows-.*",
-    r"WINDOWSR-.*",
-    r"WINODWSR-.*",
-    # Add more regex patterns as needed
-]
 
-def is_ignored_index(index_name: str) -> bool:
-    """Check if an index should be ignored based on IGNORANCE_REGEX_LIST regex patterns."""
-    return any(re.match(pattern, index_name) for pattern in IGNORANCE_REGEX_LIST)
+
+def is_ignored_index(intcid: str, index_name: str) -> bool:
+    """
+    Check if an index should be ignored based on the ignorance list (regex patterns) from MongoDB.
+    """
+    ignorance_list_doc = MongoDBManager.get_record_by_multiple_fields(
+        PropX.get_property("module.integration.config.db"),
+        PropX.get_property("module.templates.collection"),
+        {
+            "intcid": intcid,
+            "type": "integration",
+            "subtype": "indices_list",
+        }
+    )
+    ignorance_list = ignorance_list_doc.get("ignorance_list", [])
+    return any(re.match(pattern, index_name) for pattern in ignorance_list)
 
 async def get_available_indices(intcid: str, task:str) -> dict:
     """
@@ -78,7 +79,7 @@ async def get_available_indices(intcid: str, task:str) -> dict:
                 indices.append(name)  # Collect only the collector names
 
         # Filter indices using the ignorance list
-        filtered_indices = [i for i in indices if not is_ignored_index(i)]
+        filtered_indices = [i for i in indices if not is_ignored_index(intcid, i)]
 
         Logger.info(f"Found {len(filtered_indices)} indices")
         Logger.info(f"Available indices: {filtered_indices}")
