@@ -32,7 +32,7 @@ class SumoLogicFieldsRequest(BaseModel):
     
 class SumoLogicAlertContextRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
-    alert: Dict[str, Any] = Field(..., description="Alert data to extract context from")
+    alert: Any = Field(..., description="Alert data to extract context from")
     aid: str = Field(..., description="Alert ID for logging purposes")
     
 router = APIRouter(tags=["sumologic"])
