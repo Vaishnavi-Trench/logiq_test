@@ -5,6 +5,8 @@ from langchain_core.prompts import PromptTemplate
 from typing import Optional  # Only import Optional, remove unused imports
 import time
 from datetime import datetime, timedelta
+import fnmatch
+import re
 # Import platform components
 from pltfrm import (
     PropX,
@@ -18,6 +20,24 @@ from app.services.siem.sumologic.utils import (
 
 from app.services.siem.sumologic import models as sumologic_models
 
+
+# List of regex patterns to ignore
+IGNORANCE_REGEX_LIST = [
+    r"_tmp.*",
+    r"debug.*",
+    r".*_internal",
+    r"test.*",
+    r"WINDOWS-.*",
+    r"LAPTOP-.*",
+    r"windows-.*",
+    r"WINDOWSR-.*",
+    r"WINODWSR-.*",
+    # Add more regex patterns as needed
+]
+
+def is_ignored_index(index_name: str) -> bool:
+    """Check if an index should be ignored based on IGNORANCE_REGEX_LIST regex patterns."""
+    return any(re.match(pattern, index_name) for pattern in IGNORANCE_REGEX_LIST)
 
 async def get_available_indices(intcid: str, task:str) -> dict:
     """
@@ -55,24 +75,17 @@ async def get_available_indices(intcid: str, task:str) -> dict:
             name = collector.get("name")
             isAlive = collector.get("alive", False)
             if name and isAlive:
-                # query = f"_collector={name} | limit 1"
-                # response = await sumologic_run_sql_query(
-                #     intcid=intcid,
-                #     task=task,
-                #     query=query,
-                #     from_time=None,  
-                #     to_time=None,    
-                #     timezone="UTC",
-                #     wait_time=5,
-                #     max_wait_iterations=60
-                # )
-                # if "query_results" in response and response["query_results"]:
-                #     indices.append(name)
                 indices.append(name)  # Collect only the collector names
 
-        Logger.info(f"Found {len(indices)} indices")
-        Logger.info(f"Available indices: {indices}")
-        return {"indices": indices}
+        # Filter indices using the ignorance list
+        filtered_indices = [i for i in indices if not is_ignored_index(i)]
+
+        Logger.info(f"Found {len(filtered_indices)} indices")
+        Logger.info(f"Available indices: {filtered_indices}")
+        
+        
+        
+        return {"indices": filtered_indices}
     except requests.exceptions.RequestException as e:
         Logger.error(f"Error fetching indices: {e}")
         Logger.error(traceback.format_exc())
