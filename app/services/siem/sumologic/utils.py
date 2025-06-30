@@ -31,7 +31,8 @@ class SumoLogicUtils:
         self.access_key = config.get("access_key", None)
         self.api_endpoint = "https://api.sumologic.com/api/v1"
         self.partition_url = f"{self.api_endpoint}/partitions"
-        
+        self.collectors_url = f"{self.api_endpoint}/collectors"
+
     def get_access_key(self) -> str:
         """
         Get the SumoLogic access key for the current integration.

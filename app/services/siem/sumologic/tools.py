@@ -39,17 +39,36 @@ async def get_available_indices(intcid: str, task:str) -> dict:
     
     auth = (access_id, access_key)
     partition_url = sumo_logic_utils.partition_url
+    collectors_url = sumo_logic_utils.collectors_url
     
     try:
-        response = requests.get(partition_url, auth=auth)
+        # response = requests.get(partition_url, auth=auth)
+        response = requests.get(collectors_url, auth=auth)
         response.raise_for_status()  # Raise an error for bad responses
         Logger.info(f"Response: {response}")
-        partitions_data = response.json()
+        # partitions_data = response.json()
+        collectors_data = response.json()
         indices = []
-        for partition in partitions_data.get("data", []):
-            name = partition.get("name")
-            if name:
-                indices.append(name)
+        # for partition in partitions_data.get("data", []):
+        #     name = partition.get("name")
+        for collector in collectors_data.get("collectors", []):
+            name = collector.get("name")
+            isAlive = collector.get("alive", False)
+            if name and isAlive:
+                # query = f"_collector={name} | limit 1"
+                # response = await sumologic_run_sql_query(
+                #     intcid=intcid,
+                #     task=task,
+                #     query=query,
+                #     from_time=None,  
+                #     to_time=None,    
+                #     timezone="UTC",
+                #     wait_time=5,
+                #     max_wait_iterations=60
+                # )
+                # if "query_results" in response and response["query_results"]:
+                #     indices.append(name)
+                indices.append(name)  # Collect only the collector names
 
         Logger.info(f"Found {len(indices)} indices")
         Logger.info(f"Available indices: {indices}")
@@ -73,7 +92,8 @@ async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info("Fetching available fields using the Fields API")
     
-    query = f"_index={index_name} | limit 1"
+    # query = f"_index={index_name} | limit 1"
+    query = f"_collector=\"{index_name}\" | limit 1"  # Use collector name for query
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     try:
         response = await sumologic_run_sql_query(
@@ -146,7 +166,7 @@ async def sumologic_run_sql_query(
     # Set default time range
     current_time = datetime.utcnow()
     if not from_time:
-        from_time = (current_time - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        from_time = (current_time - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
     if not to_time:
         to_time = current_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -248,13 +268,13 @@ async def sumologic_run_sql_query(
             except requests.exceptions.RequestException as e:
                 Logger.error(f"Error during polling loop: {str(e)}")
                 if iterations > 5: # Stop if we get repeated errors
-                    return None
+                    return {"error": str(e)}
 
         Logger.error(f"Job timed out after {iterations} status checks")
         # Clean up the timed-out job on the server
         Logger.info(f"Cancelling job {job_id} due to timeout.")
         session.delete(status_url)
-        return None
+        return {"error": "job_timed_out"}
 
     except requests.exceptions.RequestException as e:
         Logger.error(f"Request failed: {str(e)}")
