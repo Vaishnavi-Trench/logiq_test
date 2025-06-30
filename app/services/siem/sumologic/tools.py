@@ -30,7 +30,7 @@ def is_ignored_index(intcid: str, index_name: str) -> bool:
     """
     ignorance_list_doc = MongoDBManager.get_record_by_multiple_fields(
         PropX.get_property("module.integration.config.db"),
-        PropX.get_property("module.templates.collection"),
+        PropX.get_property("module.integration.config.collection"),
         {
             "intcid": intcid,
             "type": "integration",
