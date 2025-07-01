@@ -33,3 +33,19 @@ class AlertContextResponse(BaseModel):
     """Wrapper model for the alert context."""
 
     alert_context: AlertContext
+    
+class TableName(BaseModel):
+    """Represents the name of a table in the database."""
+    
+    table_name: str
+    
+class QueryTemplate(BaseModel):
+    """Represents a query template for querying the database."""
+    query_template: str
+    from_time: str
+    to_time: str
+
+
+class FinalQuery(BaseModel):
+    """Represents the final query to be executed against the database."""
+    final_query: str

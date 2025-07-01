@@ -801,7 +801,7 @@ class SentinelUtils:
 
         except Exception as e:
             Logger.error(
-                f"Failed to push KQL template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
+                f"[sentinel] Failed to push KQL template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
             )
 
     def get_kql_template_data_from_mongo(
@@ -870,17 +870,17 @@ class SentinelUtils:
                 # Check if the collection has the expected structure
                 if "query_template" in record:
                     Logger.debug(
-                        f"Found KQL template data for '{intcid}/{tid}/{question_id}' in MongoDB."
+                        f"[sentinel] Found KQL template data for '{intcid}/{tid}/{question_id}' in MongoDB."
                     )
                     return record["query_template"]
                 else:
                     Logger.warn(
-                        f"KQL template data for '{intcid}/{tid}/{question_id}' does not contain 'query_template' key. Returning None."
+                        f"[sentinel] KQL template data for '{intcid}/{tid}/{question_id}' does not contain 'query_template' key. Returning None."
                     )
                     return None
         except Exception as e:
             Logger.error(
-                f"Failed to push KQL template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
+                f"[sentinel] Failed to push KQL template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
             )
             return None
 
@@ -1683,17 +1683,17 @@ class SentinelUtils:
             if doc and "matching_tables" in doc:
                 matching_tables = doc["matching_tables"]
                 Logger.info(
-                    f"Found matching tables for intcid: {intcid}, tid: {tid}: {matching_tables}"
+                    f"[Sentinel] Found matching tables for intcid: {intcid}, tid: {tid}: {matching_tables}"
                 )
                 return matching_tables
             else:
                 Logger.info(
-                    f"No matching tables found for intcid: {intcid}, tid: {tid}."
+                    f"[Sentinel] No matching tables found for intcid: {intcid}, tid: {tid}."
                 )
                 return []
         except Exception as e:
             Logger.error(
-                f"Error retrieving matching tables for intcid: {intcid}, tid: {tid}: {e}"
+                f"[Sentinel] Error retrieving matching tables for intcid: {intcid}, tid: {tid}: {e}"
             )
             return []
 

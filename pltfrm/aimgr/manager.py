@@ -289,7 +289,7 @@ class AIManager(Singleton):
         )
         _prompt_template = PromptTemplate.from_template(prompt_template)
         _user_prompt = _prompt_template.invoke(prompt_params).text
-        # Logger.info(f"User prompt generated: {_user_prompt}")
+        #Logger.info(f"User prompt generated: {_user_prompt}")
 
         instance = AIManager.get_instance()
         connection = instance.get_connection(model_name)
