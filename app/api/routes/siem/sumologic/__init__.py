@@ -7,7 +7,15 @@ import traceback
 import json
 
 
-from app.services.siem.sumologic.tools import get_available_indices, sumologic_run_sql_query, fetch_security_alerts, get_available_fields, sumologic_get_alert_context
+from app.services.siem.sumologic.tools import (
+    get_available_indices,
+    sumologic_run_sql_query,
+    fetch_security_alerts,
+    get_available_fields,
+    sumologic_get_alert_context,
+    sumologic_choose_table,
+    sumologic_generate_query
+)
 class SumoLogicIndicesRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
 
@@ -35,6 +43,25 @@ class SumoLogicAlertContextRequest(BaseModel):
     alert: Any = Field(..., description="Alert data to extract context from")
     aid: str = Field(..., description="Alert ID for logging purposes")
     
+class SumologicChooseTableRequest(BaseModel):
+    task: str = Field(..., description="Task identifier for logging")
+    aid: str = Field(..., description="Alert ID for logging purposes")
+    tid: str = Field(..., description="Triage ID for logging purposes")
+    question_id: str = Field(..., description="Question ID for logging purposes")
+    step_id: str = Field(..., description="Step ID for logging purposes")
+    triage_question: str = Field(..., description="Triage question to answer")
+    alert_context: dict = Field(..., description="Alert context to use for choosing table")
+
+class SumoLogicGenerateQueryRequest(BaseModel):
+    task: str
+    aid: str
+    step_id: str
+    tid: str
+    question_id: str
+    triage_question: str
+    table_name: str
+    alert_context: Dict  # Assuming alert is passed as string for this specific tool
+
 router = APIRouter(tags=["sumologic"])
 
 @router.post("/get_indices/{intcid}")
@@ -164,9 +191,77 @@ async def get_alert_context_route(
             content={"error": f"Failed to get alert context from sumologic: {str(e)}"},
         )
 
+@router.post("/choose_table/{intcid}")
+async def choose_table_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: SumologicChooseTableRequest = Body(..., description="Request body containing task, aid, tid, question_id, step_id, triage_question and alert_context")
+):
+    """
+    Choose the best table for the alert context.
+    """
+    try:
+        task = request.task
+        Logger.info(f"Task: {task} - Integration ID: {intcid}")
+        aid = request.aid
+        tid = request.tid
+        question_id = request.question_id
+        step_id = request.step_id
+        triage_question = request.triage_question
+        alert_context = request.alert_context
+        
+        Logger.info(f"Choosing table for intcid {intcid} with aid {aid}")
+        result = await sumologic_choose_table(
+            intcid=intcid,
+            task=task,
+            aid=aid,
+            tid=tid,
+            question_id=question_id,
+            step_id=step_id,
+            triage_question=triage_question,
+            alert_context=alert_context
+        )
+        return result
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error choosing table {str(e)}")
+        Logger.error(
+            f"Error in choose_table: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to choose table from sumologic: {str(e)}"},
+        )
 
-
-
-
+@router.post("/generate_query/{intcid}")
+async def generate_query_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: SumoLogicGenerateQueryRequest = Body(..., description="Request body containing task, aid, step_id, tid, question_id, triage_question, table_name and alert_context")
+):
+    """
+    Generate a query for the alert context.
+    """
+    try:
+        Logger.info(f"Task: {request.task} - Integration ID: {intcid}")
+        Logger.info(f"Generating query for intcid {intcid} with aid {request.aid}")
+        result = await sumologic_generate_query(
+            intcid=intcid,
+            task=request.task,
+            aid=request.aid,
+            table_name=request.table_name,
+            tid=request.tid,
+            question_id=request.question_id,
+            step_id=request.step_id,
+            triage_question=request.triage_question,
+            alert_context=request.alert_context
+        )
+        return result
+    except (ValueError, TypeError) as e:
+        Logger.error(f"Error generating query {str(e)}")
+        Logger.error(
+            f"Error in generate_query_route: {str(e)}\n{traceback.format_exc()}"
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to generate query from sumologic: {str(e)}"},
+        )
 
 
