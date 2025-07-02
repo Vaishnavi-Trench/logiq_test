@@ -8,21 +8,15 @@ import time
 from datetime import datetime, timedelta, timezone  # Add timezone here
 import fnmatch
 import re
-# Import platform components
-from pltfrm import (
-    PropX,
-    AIManager,
-    Logger2 as Logger,
-    MongoDBManager
-)
 
-from app.services.siem.sumologic.utils import (
-    SumoLogicUtils
-)
+DEFAULT_QUERY_TIME_RANGE = "1h"
+
+# Import platform components
+from pltfrm import PropX, AIManager, Logger2 as Logger, MongoDBManager
+
+from app.services.siem.sumologic.utils import SumoLogicUtils
 
 from app.services.siem.sumologic import models as sumologic_models
-
-
 
 
 def is_ignored_index(intcid: str, index_name: str) -> bool:
@@ -36,12 +30,13 @@ def is_ignored_index(intcid: str, index_name: str) -> bool:
             "intcid": intcid,
             "type": "integration",
             "subtype": "ignore_index_list",
-        }
+        },
     )
     ignorance_list = ignorance_list_doc.get("ignorance_list", [])
     return any(re.match(pattern, index_name) for pattern in ignorance_list)
 
-async def get_available_indices(intcid: str, task:str) -> dict:
+
+async def get_available_indices(intcid: str, task: str) -> dict:
     """
     Get all available indices in SumoLogic using the Partitions API.
     Args:
@@ -53,16 +48,15 @@ async def get_available_indices(intcid: str, task:str) -> dict:
     """
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info("Fetching available indices using the Partitions API")
-    
+
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     access_id = sumo_logic_utils.get_access_id()
     access_key = sumo_logic_utils.get_access_key()
-    
-    
+
     auth = (access_id, access_key)
     partition_url = sumo_logic_utils.partition_url
     collectors_url = sumo_logic_utils.collectors_url
-    
+
     try:
         # response = requests.get(partition_url, auth=auth)
         response = requests.get(collectors_url, auth=auth)
@@ -84,19 +78,18 @@ async def get_available_indices(intcid: str, task:str) -> dict:
 
         Logger.info(f"Found {len(filtered_indices)} indices")
         Logger.info(f"Available indices: {filtered_indices}")
-        
-        
-        
+
         return {"indices": filtered_indices}
     except requests.exceptions.RequestException as e:
         Logger.error(f"Error fetching indices: {e}")
         Logger.error(traceback.format_exc())
         return {"error": "indices_fetch_error", "message": str(e)}
-    
+
+
 async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
     """
     Get all available fields in SumoLogic using the Fields API.
-    
+
     Args:
         intcid (str): Integration ID
         task (str): Task identifier for logging
@@ -106,9 +99,9 @@ async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
     """
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info("Fetching available fields using the Fields API")
-    
+
     # query = f"_index={index_name} | limit 1"
-    query = f"_collector=\"{index_name}\" | limit 1"  # Use collector name for query
+    query = f'_collector="{index_name}" | limit 1'  # Use collector name for query
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     try:
         response = await sumologic_run_sql_query(
@@ -116,12 +109,12 @@ async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
             task=task,
             query=query,
             from_time=None,  # Use default time range
-            to_time=None,    # Use default time range
-            query_timezone = "UTC",
+            to_time=None,  # Use default time range
+            query_timezone="UTC",
             wait_time=5,
-            max_wait_iterations=60
+            max_wait_iterations=60,
         )
-        
+
         if not response or "query_results" not in response:
             Logger.error("No results returned from SumoLogic query")
             return {"error": "no_results", "message": "No fields found"}
@@ -135,14 +128,12 @@ async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
         fields = sumo_logic_utils.extract_field_names(sample_record)
 
         Logger.info(f"Found {len(fields)} fields in index {index_name}")
-        return {
-            "fields": list(fields),
-            "sample_record": sample_record
-        }
+        return {"fields": list(fields), "sample_record": sample_record}
     except Exception as e:
         Logger.error(f"Error fetching fields: {str(e)}")
         Logger.error(traceback.format_exc())
         return {"error": "fields_fetch_error", "message": str(e)}
+
 
 async def sumologic_run_sql_query(
     intcid: str,
@@ -192,7 +183,10 @@ async def sumologic_run_sql_query(
         session.auth = auth
         search_job_url = f"{api_endpoint}/search/jobs"
         payload = {
-            "query": query, "from": from_time, "to": to_time, "timeZone": query_timezone
+            "query": query,
+            "from": from_time,
+            "to": to_time,
+            "timeZone": query_timezone,
         }
         Logger.info(f"Submitting SumoLogic search job: {payload}")
         response = session.post(search_job_url, json=payload)
@@ -207,7 +201,7 @@ async def sumologic_run_sql_query(
         status_url = f"{api_endpoint}/search/jobs/{job_id}"
         iterations = 0
         while iterations < max_wait_iterations:
-            await asyncio.sleep(wait_time) # Use asyncio.sleep in an async function
+            await asyncio.sleep(wait_time)  # Use asyncio.sleep in an async function
             iterations += 1
             try:
                 status_response = session.get(status_url)
@@ -220,23 +214,33 @@ async def sumologic_run_sql_query(
                 status_response.raise_for_status()
                 job_status = status_response.json()
                 state = job_status.get("state", "")
-                Logger.info(f"Job status: {state} (check {iterations}/{max_wait_iterations})")
+                Logger.info(
+                    f"Job status: {state} (check {iterations}/{max_wait_iterations})"
+                )
 
                 if state == "DONE GATHERING RESULTS":
-                    
+
                     record_count = job_status.get("recordCount", 0)
                     message_count = job_status.get("messageCount", 0)
 
                     if record_count > 0:
-                        Logger.info(f"Query is an aggregate. Fetching {record_count} records.")
+                        Logger.info(
+                            f"Query is an aggregate. Fetching {record_count} records."
+                        )
                         results_url = f"{api_endpoint}/search/jobs/{job_id}/records"
-                        results_data = session.get(results_url, params={"offset": 0, "limit": record_count}).json()
+                        results_data = session.get(
+                            results_url, params={"offset": 0, "limit": record_count}
+                        ).json()
                         # Extract the 'map' from each record
-                        parsed_results = [r.get('map') for r in results_data.get('records', [])]
+                        parsed_results = [
+                            r.get("map") for r in results_data.get("records", [])
+                        ]
                         return {"query_results": parsed_results}
 
                     elif message_count > 0:
-                        Logger.info(f"Query is for raw logs. Fetching {message_count} messages.")
+                        Logger.info(
+                            f"Query is for raw logs. Fetching {message_count} messages."
+                        )
                         # This is your original, unchanged logic for fetching messages
                         all_parsed_results = []
                         limit = 1000
@@ -245,20 +249,23 @@ async def sumologic_run_sql_query(
                             params = {"offset": offset, "limit": limit}
                             results_response = session.get(results_url, params=params)
                             results_response.raise_for_status()
-                            results_data = results_response.json().get('messages', [])
+                            results_data = results_response.json().get("messages", [])
                             for message in results_data:
-                                raw_log_string = message.get('map', {}).get('_raw')
+                                raw_log_string = message.get("map", {}).get("_raw")
                                 if raw_log_string:
                                     try:
-                                        all_parsed_results.append(json.loads(raw_log_string))
+                                        all_parsed_results.append(
+                                            json.loads(raw_log_string)
+                                        )
                                     except json.JSONDecodeError:
-                                        all_parsed_results.append({"_raw": raw_log_string})
+                                        all_parsed_results.append(
+                                            {"_raw": raw_log_string}
+                                        )
                         return {"query_results": all_parsed_results}
-                    
+
                     else:
                         Logger.info("Query returned no results.")
                         return {"query_results": []}
-                    
 
                 elif state in ["CANCELLED", "FORCE CANCELLED", "FAILED"]:
                     messages = job_status.get("messages", [])
@@ -284,12 +291,10 @@ async def sumologic_run_sql_query(
     except Exception as e:
         Logger.error(f"Unexpected error running query: {str(e)}")
         return None
-    
+
+
 async def fetch_security_alerts(
-    intcid: str,
-    task: str,
-    start_time: str = None,
-    end_time: str = None
+    intcid: str, task: str, start_time: str = None, end_time: str = None
 ) -> dict:
     """
     Fetch system alerts from SumoLogic using a specific query.
@@ -312,26 +317,44 @@ async def fetch_security_alerts(
 
     query = '_index=sumologic_system_events AND _sourcename = "AlertSystemInfo"'
     results = await sumologic_run_sql_query(
-        intcid=intcid,
-        task=task,
-        query=query,
-        from_time=start_time,
-        to_time=end_time
+        intcid=intcid, task=task, query=query, from_time=start_time, to_time=end_time
     )
     alerts = results.get("query_results", []) if results else []
 
-    alerts_created = [a for a in alerts if a.get("details", {}).get("name") == "AlertCreated"]
+    alerts_created = [
+        a for a in alerts if a.get("details", {}).get("name") == "AlertCreated"
+    ]
 
-    return {
-        "security_alerts_data": alerts_created
-    }
+    return {"security_alerts_data": alerts_created}
 
-async def sumologic_get_alert_context(
+
+async def fetch_security_alerts_with_query(
     intcid: str,
     task: str,
-    aid: str,
-    alert: dict
-):
+    query: str,
+    time_field: str,
+    start_time: str = None,
+    end_time: str = None,
+) -> dict:
+    Logger.info(f"tool:fetch_security_alerts_with_query: Starting for {intcid} {task}")
+
+    now = datetime.utcnow()
+    if not end_time:
+        end_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not start_time:
+        start_time = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    Logger.debug(f"KQL Query: {query}")
+    results = await sumologic_run_sql_query(
+        intcid=intcid, task=task, query=query, from_time=start_time, to_time=end_time
+    )
+    Logger.debug(f"Query results: {results}")
+    alerts = results.get("query_results", []) if results else []
+
+    return {"alert_query_results": alerts}
+
+
+async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: dict):
     """
     Get context for a specific alert by its ID.
 
@@ -347,10 +370,9 @@ async def sumologic_get_alert_context(
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Fetching context for alert ID: {aid}")
 
-
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     alert_source = alert.get("source", "").lower()  # Get the alert source in lowercase
-    
+
     if alert_source:
         prompt_name = sumo_logic_utils.get_prompt_name(alert_source, "alert_context")
     else:
@@ -362,7 +384,9 @@ async def sumologic_get_alert_context(
             intcid=intcid,
             prompt_template_name=prompt_name,
             prompt_params={
-                "alert": json.dumps(alert),  # This now contains either the original alert/incident or the list of fetched alerts
+                "alert": json.dumps(
+                    alert
+                ),  # This now contains either the original alert/incident or the list of fetched alerts
                 "env": env,
                 "requirement": task,
             },
@@ -378,15 +402,18 @@ async def sumologic_get_alert_context(
 
         Logger.info(f"AI response for context extraction: {alert_context}")
         sumo_logic_utils = SumoLogicUtils(intcid=intcid)
-        alert_context = sumo_logic_utils.transform_alert_context(input_data=alert_context)
+        alert_context = sumo_logic_utils.transform_alert_context(
+            input_data=alert_context
+        )
         alert_context["env"] = env  # Ensure env is included
         return alert_context
-        
+
     except Exception as e:
         Logger.error(f"Error fetching alert context: {str(e)}")
         Logger.error(traceback.format_exc())
         return {"error": "alert_context_fetch_error", "message": str(e)}
-    
+
+
 async def sumologic_choose_table(
     intcid: str,
     task: str,
@@ -395,13 +422,13 @@ async def sumologic_choose_table(
     question_id: str,
     step_id: str,
     triage_question: str,
-    alert_context: any
+    alert_context: any,
 ) -> dict:
-    
+
     sumologic_utils = SumoLogicUtils(intcid=intcid)
     model_name = PropX.get_property("module.llm.model")
     env = alert_context.get("env", "unknown").lower()
-    
+
     query = {"intcid": intcid, "vendor": "sumologic", "subtype": "index_list"}
     index_list = sumologic_utils.fetch_index_list(query=query)
 
@@ -410,8 +437,7 @@ async def sumologic_choose_table(
         return {"error": "no_indices_found"}
 
     Logger.info(f"Found {len(index_list)} indices for integration {intcid}")
-    
-    
+
     ## Commented temporarily to avoid MongoDB dependency
     # try:
     #     table_name = sumologic_utils.get_table_name_from_mongo(
@@ -420,23 +446,21 @@ async def sumologic_choose_table(
     #     reason = "Table name found in MongoDB template."
     # except Exception as mongo_e:
     #     Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
-    
+
     table_name = None
-    
+
     if not table_name:
         try:
             tables_list = sumologic_utils.get_top_matching_tables(intcid, tid)
             Logger.info(
                 f"Top matching tables for {intcid} and TID {tid}: {tables_list}"
             )
-            table_name_to_desc = {
-                entry["index"]: entry["desc"] for entry in index_list
-            }
+            table_name_to_desc = {entry["index"]: entry["desc"] for entry in index_list}
             tables_name_and_description_list = [
                 {"index": table, "desc": table_name_to_desc.get(table, "")}
                 for table in tables_list
             ]
-            
+
             if not tables_name_and_description_list:
                 Logger.warn(
                     f"No matching tables found for intcid: {intcid}, tid: {tid}. Using all available indices."
@@ -445,7 +469,7 @@ async def sumologic_choose_table(
                     {"index": entry["index"], "desc": entry["desc"]}
                     for entry in index_list
                 ]
-            
+
             tables_name_and_description = sumologic_utils.parse_indices(
                 tables_name_and_description_list
             )
@@ -517,11 +541,8 @@ async def sumologic_choose_table(
                 Logger.error(
                     f"Table {table_name} is not available in Sumologic. Please check the table name."
                 )
-                return {
-                    "error": f"{reason} failed"
-                }
+                return {"error": f"{reason} failed"}
 
-            
         except Exception as e:
             Logger.error(
                 f"Error during Sumologic table selection: {e}\n{traceback.format_exc()}"
@@ -529,6 +550,7 @@ async def sumologic_choose_table(
             return {
                 "error": f"An unexpected error occurred during table name selection: {e}"
             }
+
 
 async def sumologic_generate_query(
     intcid: str,
@@ -563,7 +585,7 @@ async def sumologic_generate_query(
 
     max_retries = 5
     last_error_msg = ""
-    
+
     query_template = None
     final_query = None
     attempt = 0
@@ -588,7 +610,7 @@ async def sumologic_generate_query(
                 )
                 continue
             query_template = query_template_resp.get("query_template")
-            
+
             final_sumo_query_resp = await sumologic_prepare_query(
                 intcid=intcid,
                 task=task,
@@ -628,7 +650,8 @@ async def sumologic_generate_query(
         Logger.error(f"Error during query generation: {str(e)}")
     Logger.error(traceback.format_exc())
     return {"error": f"An unexpected error occurred during query generation: {str(e)}"}
-      
+
+
 async def sumologic_generate_query_template(
     intcid: str,
     aid: str,
@@ -640,11 +663,11 @@ async def sumologic_generate_query_template(
     alert_context: dict,
     triage_question: str,
 ) -> dict:
-    
+
     sumologic_utils = SumoLogicUtils(intcid=intcid)
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Generating query template for table: {table}")
-    
+
     # try:
     #     _query_template = sumologic_utils.get_sumologic_template_data_from_mongo(
     #         intcid=intcid,
@@ -661,7 +684,6 @@ async def sumologic_generate_query_template(
     #     Logger.error(f"Error getting sumologic query template from MongoDB: {e}")
     #     pass
 
-    
     # for table in tables:
     Logger.info(f"Processing table: {table}")
     sample_records = sumologic_utils.get_sample_records(intcid, table)
@@ -698,7 +720,12 @@ async def sumologic_generate_query_template(
     to_time = response.get("to_time", None)
     Logger.info(f"Query Template: {query_template}")
 
-    return {"query_template": query_template, "from_time": from_time, "to_time": to_time}
+    return {
+        "query_template": query_template,
+        "from_time": from_time,
+        "to_time": to_time,
+    }
+
 
 async def sumologic_prepare_query(
     intcid: str,
@@ -710,7 +737,7 @@ async def sumologic_prepare_query(
     step_id: str,
     triage_question: str,
     alert_context: dict,
-    query_template: str
+    query_template: str,
 ) -> dict:
     """
     Prepare the final query for execution in SumoLogic.
@@ -730,10 +757,9 @@ async def sumologic_prepare_query(
     Returns:
         dict: Final sumologic query query or error message
     """
-    
+
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
 
-    
     try:
         query = AIManager.run_prompt_with_structured_output(
             intcid=intcid,
@@ -757,12 +783,9 @@ async def sumologic_prepare_query(
         )
         query = query.get("final_query")
         return {"query": query}
-    
+
     except Exception as e:
         Logger.error(f"Error preparing final sumologic query query: {str(e)}")
-        return {"error": f"An unexpected error occurred while preparing the sumologic query query: {str(e)}"}
-
-
-
-
-
+        return {
+            "error": f"An unexpected error occurred while preparing the sumologic query query: {str(e)}"
+        }
