@@ -411,13 +411,16 @@ class SumoLogicUtils:
             self.main_db, self.integration, filter
         )
         prompt_mapping = source_prompt_map.get("prompt_mapping", {})
-        
+
+        Logger.info(f"Prompt mapping for {prompt_type}: {prompt_mapping}")
         if prompt_mapping:
             # If the source exists in the mapping, return the corresponding prompt name
             if source in prompt_mapping:
                 return prompt_mapping[source]
         # If the source is not found, return the default prompt
-        return source_prompt_map.get("default", "")
+        prompt = prompt_mapping.get("default", "")
+        Logger.info(f"Using default prompt: {prompt} for source: {source}")
+        return prompt
 
 
 

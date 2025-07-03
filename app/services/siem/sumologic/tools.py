@@ -370,11 +370,19 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Fetching context for alert ID: {aid}")
 
+    if isinstance(alert, str):
+            try:
+                alert = json.loads(alert)
+            except json.JSONDecodeError:
+                Logger.error(f"Failed to decode alert_context string into a dict: {alert}")
+                return {"error": "alert_context_decode_error", "message": "Failed to decode alert_context from string."}
+
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     alert_source = alert.get("source", "").lower()  # Get the alert source in lowercase
 
     if alert_source:
         prompt_name = sumo_logic_utils.get_prompt_name(alert_source, "alert_context")
+        Logger.info(f"Using prompt template: {prompt_name} for alert source: {alert_source}")
     else:
         prompt_name = "SUMOLOGIC_ALERT_CONTEXT_EXTRACTION_PROMPT"
 
@@ -400,6 +408,7 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
             system_prompt="You are an expert in understanding Sumologic Alerts. Your task is to extract context parameters from given input which included received alert.",
         )
 
+        
         Logger.info(f"AI response for context extraction: {alert_context}")
         sumo_logic_utils = SumoLogicUtils(intcid=intcid)
         alert_context = sumo_logic_utils.transform_alert_context(

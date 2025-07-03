@@ -26,6 +26,8 @@ class SumoLogicIndicesRequest(BaseModel):
 class SumoLogicQueryRequest(BaseModel):
     task: str = Field(..., description="Task identifier for logging")
     query: str = Field(..., description="Query to run against SumoLogic")
+    from_time: Optional[str] = Field(None, description="Start time for the query")
+    to_time: Optional[str] = Field(None, description="End time for the query")
 
 
 class SumoLogicSystemAlertsRequest(BaseModel):
@@ -155,7 +157,7 @@ async def run_query_route(
         Logger.info(f"Task: {task} - Integration ID: {intcid}")
         query = request.query
         Logger.info(f"Running query for intcid {intcid}")
-        result = await sumologic_run_sql_query(intcid=intcid, task=task, query=query)
+        result = await sumologic_run_sql_query(intcid=intcid, task=task, query=query, from_time=request.from_time, to_time=request.to_time)
         return result
     except (ValueError, TypeError) as e:
         Logger.error(f"Error running query {str(e)}")
