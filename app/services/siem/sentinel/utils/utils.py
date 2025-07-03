@@ -2253,3 +2253,4 @@ class SentinelUtils:
         except Exception as e:
             Logger.debug(f"Error extracting reputation summary: {e}")
             return None
+

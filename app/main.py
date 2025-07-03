@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from app.api.routes import api_router
 from app.core.config import settings
 from app.models.schemas import StatusResponse
-from pltfrm import MongoDBManager, AIManager, RedisManager
+from pltfrm import MongoDBManager, AIManager, RedisManager, ElasticsearchManager
 from pltfrm import PropX
 from pltfrm import Logger2 as Logger
 from pltfrm import PromptManager
@@ -88,6 +88,12 @@ async def initialize_services():
         PromptManager.initialize()
     except Exception as e:
         Logger.error(f"Failed to initialize OpenAI: {e}")
+
+    try:
+        Logger.info("main: Initializing Elasticsearch manager")
+        ElasticsearchManager.initialize()
+    except Exception as e:
+        Logger.error(f"Failed to initialize ElasticSearch: {e}")
 
     try:
         load_dotenv()

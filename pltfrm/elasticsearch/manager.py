@@ -282,3 +282,69 @@ class ElasticsearchManager:
         except Exception as e:
             Logger.error(f"Error updating Document{doc}: {e}")
             return None
+
+    @staticmethod
+    def get_multiple_best_match(
+        index_name: str,
+        query_terms: List[Dict[str, Any]],
+        embedding: List[float],
+        threshold: float = 0.8,
+        max_results: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve multiple relevant documents using kNN search.
+
+        Args:
+            index_name: Name of the Elasticsearch index.
+            intcid: Customer ID to filter results.
+            embedding: Vector embedding to search for.
+            threshold: Minimum similarity score threshold.
+            max_results: Maximum number of results to return.
+
+        Returns:
+            List[Dict[str, Any]]: List of relevant documents.
+        """
+        es = ElasticsearchManager.get_instance().get_es_client()
+        if not es:
+            Logger.error("Elasticsearch client not initialized")
+            return []
+
+        final_query_terms = [{"term": query_term} for query_term in query_terms]
+
+        knn_query = {
+            "size": max_results,
+            "knn": {
+                "field": "embeddings",
+                "query_vector": embedding,
+                "k": max_results,
+                "num_candidates": 100,
+                "filter": final_query_terms,
+            },
+        }
+
+        try:
+            response = es.search(index=index_name, body=knn_query)
+            hits = response.get("hits", {}).get("hits", [])
+
+            if not hits:
+                Logger.info(f"No relevant documents found for {query_terms}.")
+                return []
+
+            for hit in hits:
+                score = hit.get("_score", 0)
+                if score < threshold:
+                    Logger.debug(
+                        f"Document {hit['_id']} below threshold ({score} < {threshold})"
+                    )
+
+            relevant_results = [
+                hit["_source"] for hit in hits if hit["_score"] >= threshold
+            ]
+
+            Logger.info(
+                f"Found {len(relevant_results)} relevant documents for {query_terms}."
+            )
+            return relevant_results
+
+        except Exception as e:
+            Logger.error(f"Error in kNN search for {query_terms}: {e}")
+            return []

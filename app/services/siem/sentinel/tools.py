@@ -3,7 +3,7 @@ import traceback
 import requests
 from langchain_core.prompts import PromptTemplate
 from typing import Optional
-
+from typing import Dict, Any, List
 # Import platform components
 from pltfrm import (
     Logger2 as Logger,
@@ -16,11 +16,12 @@ from pltfrm import (
 from app.services.siem.sentinel import models as sentinel_models
 
 # Import Sentinel specific utils and functions
-from app.services.siem.sentinel.utils import (
+from app.services.siem.sentinel.utils.utils import (
     SentinelUtils,
     DEFAULT_QUERY_TIME_RANGE,
 )
 
+from app.services.siem.sentinel.utils.alert_context_enrichment_util import run_kql_and_collect, get_matching_tables_for_username, get_matching_tables_for_ip, build_final_ans_dict, group_tables   
 
 async def sentinel_choose_table(
     intcid: str,
@@ -1413,8 +1414,11 @@ async def sentinel_get_alert_context(
             alert_context.get("extracted_fields", {}).get("user_name", {}).get("value")
         )
 
-        enriched_alert_context = None
+        final_enriched_alert_context = None
 
+
+        rag_enriched_alert_context = await enrich_alert_context_using_rag(intcid, aid, alert, alert_context)
+        Logger.info(f"RAG Enriched Alert Context: {rag_enriched_alert_context}")
         if user_name_value:
             # Always extract the username before '@'
             Logger.info(f"Extracting user name from value: {user_name_value}")
@@ -1424,12 +1428,12 @@ async def sentinel_get_alert_context(
                 username = user_name_value.split("@")[0]
             user_email = sentinel_utils.user_lookup(intcid, username)
             alert_context["extracted_fields"]["user_name"]["value"] = [username, user_email] if user_email else [username]
-            Logger.info(f"Alerrt Context: {alert_context}")
-            enriched_alert_context = await enrich_alert_context(intcid, alert_context, aid)
+            Logger.info(f"Alert Context: {alert_context}")
+            final_enriched_alert_context = await enrich_alert_context(intcid, rag_enriched_alert_context, aid)
 
-        if enriched_alert_context:
+        if final_enriched_alert_context:
             Logger.info("Successfully enriched alert context with user details.")
-            return enriched_alert_context
+            return final_enriched_alert_context
         else:
             Logger.info("No user enrichment performed. Returning basic alert context.")
             return alert_context
@@ -1858,6 +1862,58 @@ async def get_failed_login_details(intcid: str, alert_context: dict, task: str) 
         Logger.error(f"Error retrieving failed login details: {e}")
         return {"error": f"An error occurred while retrieving failed login details: {e}"}
     
+
+async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> Dict: 
+    Logger.info("[NODE] Executing node: enrich_alert_context_using_rag")
+
+    extracted_fields = alert_context.get('extracted_fields', {}) if isinstance(alert_context, dict) else {}
+    username_present = bool(extracted_fields.get('user_name', {}).get('value'))
+    source_ip_present = bool(extracted_fields.get('source_ip', {}).get('value'))
+    target_ip_present = bool(extracted_fields.get('target_ip', {}).get('value'))
+    ip_present = source_ip_present or target_ip_present
+    if username_present and ip_present:
+        Logger.info("Both username and (source_ip or target_ip) are present in alert context. Skipping enrichment.")
+        return {
+            "alert_labels_processing_status": False,
+            "reason": "Both username and IP present in alert context. No enrichment needed."
+        }
+    table_index_name = PropX.get_property("elasticsearch.table.index.name")
+    if not table_index_name:
+        table_index_name = "tables_index"
+    username_matching_tables = get_matching_tables_for_username(intcid)
+    ip_matching_tables = get_matching_tables_for_ip(intcid)
+    username_grouped_by_index, ip_grouped_by_index, common_indices, grouped_by_index = group_tables(
+        username_matching_tables, ip_matching_tables
+    )
+    final_ans_dict = build_final_ans_dict(common_indices, username_grouped_by_index, ip_grouped_by_index)
+
+    enriched_alert_context = alert_context
+    
+    if username_present and not ip_present:
+        Logger.info("Username present in alert context. Enriching with user-based KQL queries.")
+        enriched_alert_context = await run_kql_and_collect(
+            final_ans_dict, grouped_by_index, alert, aid, alert_context, intcid, use_user_kql=True
+        )
+    
+    elif ip_present and not username_present:
+        Logger.info("IP address present in alert context. Enriching with IP-based KQL queries.")
+        enriched_alert_context = await run_kql_and_collect(
+            final_ans_dict, grouped_by_index, alert, aid, alert_context, intcid, use_user_kql=False
+        )
+    
+    else:
+        Logger.info("Neither username nor IP present in alert context. No enrichment possible.")
+        return {
+            "alert_labels_processing_status": False,
+            "reason": "Neither username nor IP present in alert context."
+        }
+
+
+    Logger.info("RAG enrichment completed successfully.")
+    return enriched_alert_context
+
+
+  
 async def enrich_alert_context(intcid, alert_context, aid, ) -> dict:
     """
     Enrich alert context with additional data from external sources.

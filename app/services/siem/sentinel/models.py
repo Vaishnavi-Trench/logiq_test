@@ -57,3 +57,17 @@ class TableSelectionOutput(BaseModel):
 class QueryTemplateOutput(BaseModel):
     """Output model for the query template."""
     query_template: str
+
+
+class AlertContextEnrichmentQuery(BaseModel):
+    """Model for individual KQL query."""
+    query: str = Field(description="The KQL query string")
+    description: str = Field(description="Description of what this query is searching for")
+    index_name: str = Field(description="Target index/table name for the query")
+    reason:str = Field(
+        description="Reason for generating this query"
+    )
+
+class AlertContextEnrichmentQueryList(BaseModel):
+    """Model for list of KQL queries."""
+    queries: List[AlertContextEnrichmentQuery] = Field(description="List of KQL queries to be executed")
