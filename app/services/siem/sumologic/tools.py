@@ -187,6 +187,7 @@ async def sumologic_run_sql_query(
             "from": from_time,
             "to": to_time,
             "timeZone": query_timezone,
+            "autoParsingMode": "AutoParse"
         }
         Logger.info(f"Submitting SumoLogic search job: {payload}")
         response = session.post(search_job_url, json=payload)
