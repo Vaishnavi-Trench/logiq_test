@@ -36,23 +36,55 @@ spec:
             - "/bin/sh"
             - "-c"
             - |
+              # IMPORTANT: Replace YOUR_GCP_PROJECT_ID with your actual Google Cloud Project ID
+              GCP_PROJECT_ID="trench-production" 
+
               echo 'Fetching logiq.conf from secrets...';
-              if [ "${SECRET_VERSION}" = "latest" ]; then
-                gcloud secrets versions access latest --secret=properties_logiq_config > /tmp/logiq.conf;
-              else
-                gcloud secrets versions access ${SECRET_VERSION} --secret=properties_logiq_config > /tmp/logiq.conf;
+
+              ATTEMPTS=0
+              MAX_ATTEMPTS=5
+              RETRY_DELAY=10 # seconds
+
+              FETCH_SUCCESS=false
+              while [ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]; do
+                ATTEMPTS=$((ATTEMPTS+1))
+                echo "Attempt ${ATTEMPTS} of ${MAX_ATTEMPTS} to fetch secret."
+                
+                if [ "${SECRET_VERSION}" = "latest" ]; then
+                  if gcloud secrets versions access latest --secret=properties_logiq_config --project="${GCP_PROJECT_ID}" > /tmp/logiq.conf; then
+                    FETCH_SUCCESS=true
+                  fi
+                else
+                  if gcloud secrets versions access "${SECRET_VERSION}" --secret=properties_logiq_config --project="${GCP_PROJECT_ID}" > /tmp/logiq.conf; then
+                    FETCH_SUCCESS=true
+                  fi
+                fi
+
+                if [ "${FETCH_SUCCESS}" = "true" ]; then
+                  echo "Completed secret fetching for version: ${SECRET_VERSION}";
+                  break # Exit loop on success
+                else
+                  echo "Failed to fetch secret on attempt ${ATTEMPTS}. Retrying in ${RETRY_DELAY} seconds..."
+                  sleep "${RETRY_DELAY}"
+                fi
+              done
+
+              if [ "${FETCH_SUCCESS}" = "false" ]; then
+                echo "Failed to fetch secret after ${MAX_ATTEMPTS} attempts. Exiting."
+                exit 1 # Exit with an error code if all attempts fail
               fi
-              echo "Completed secret fetching for version: ${SECRET_VERSION}";
 
               # Convert Unix line endings to Windows (CRLF) if necessary
+              # Assuming /mnt/secrets is your desired persistent location
+              echo 'Copying /tmp/logiq.conf to /mnt/secrets/logiq.conf';
+              mkdir -p /mnt/secrets # Ensure the directory exists
               cat /tmp/logiq.conf > /mnt/secrets/logiq.conf;
-
-              echo 'Windows line endings applied and file written to /mnt/secrets/';
+              echo 'File written to /mnt/secrets/';
 
               # Loop indefinitely
               while true; do
-                echo 'Sleeping for 300 seconds';
-                sleep 300;
+                echo 'Sleeping for 60 seconds';
+                sleep 60;
               done
           volumeMounts:
             - mountPath: /mnt/secrets/
