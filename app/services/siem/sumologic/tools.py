@@ -636,9 +636,10 @@ async def sumologic_generate_query(
 
             # Check for unresolved placeholders like <<Alert.key.value>>
             if final_query and not re.search(r"<<[^>]+>>", final_query):
+                Logger.info(f"Query template successfully resolved: {query_template}")
                 return {
                     "query_template": query_template,
-                    "final_query": final_query,
+                    "query": final_query,
                     "from_time": query_template_resp.get("from_time"),
                     "to_time": query_template_resp.get("to_time"),
                 }
