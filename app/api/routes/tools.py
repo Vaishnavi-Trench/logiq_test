@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Path
 from typing import List, Dict
-from app.services.tools_service import get_tools, get_containment_tools
+from app.services.tools_service import get_tools, get_response_tools
 from pltfrm import Logger2 as Logger
 
 router = APIRouter(tags=["tools"])
@@ -20,15 +20,15 @@ async def get_tools_route(intcid: str = Path(..., description="Customer ID")):
     return tools
 
 
-@router.get("/get_containment_tools/{intcid}", response_model=List[Dict])
-async def get_containment_tools_route(intcid: str = Path(..., description="Customer ID")):
+@router.get("/get_response_tools/{intcid}", response_model=List[Dict])
+async def get_response_tools_route(intcid: str = Path(..., description="Customer ID")):
     """
-    Get available containment tools for a specific customer ID as Tool objects
+    Get available response tools for a specific customer ID as Tool objects
     """
     Logger.info(
-        f"api: /get_containment_tools/{intcid}: Retrieving available containment tools for customer {intcid}"
+        f"api: /get_response_tools/{intcid}: Retrieving available response tools for customer {intcid}"
     )
-    # Get containment tools for this specific customer ID
-    tools = get_containment_tools(intcid)
+    # Get response tools for this specific customer ID
+    tools = get_response_tools(intcid)
 
     return tools

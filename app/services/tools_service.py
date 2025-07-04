@@ -49,18 +49,18 @@ def load_tools_from_db() -> List[Dict]:
         return []
 
 
-def load_containment_tools_from_db() -> List[Dict]:
+def load_response_tools_from_db() -> List[Dict]:
     """
-    Load containment tools from the database
+    Load response tools from the database
     """
     try:
         tools = MongoDBManager.get_all_records(
             "main_db",
             "tools",
-            {"recordType": "tool_definitions", "category": "containment"},
+            {"recordType": "tool_definitions", "category": "response"},
         )
         if not tools:
-            Logger.error("No containment tools found in the database")
+            Logger.error("No response tools found in the database")
             return []
         
         # The result from get_all_records is a cursor
@@ -71,7 +71,7 @@ def load_containment_tools_from_db() -> List[Dict]:
         return tools_list
 
     except Exception as e:
-        Logger.error(f"Error loading containment tools from DB: {str(e)}")
+        Logger.error(f"Error loading response tools from DB: {str(e)}")
         return []
 
 
@@ -148,9 +148,9 @@ def get_tools(intcid: str) -> List[Dict]:
     return available_tools
 
 
-def get_containment_tools(intcid: str) -> List[Dict]:
+def get_response_tools(intcid: str) -> List[Dict]:
     """
-    Get the list of available containment tools for a specific customer ID
+    Get the list of available response tools for a specific customer ID
 
     Args:
         intcid: The customer ID to get tools for
@@ -178,15 +178,15 @@ def get_containment_tools(intcid: str) -> List[Dict]:
     available_tool_names = []
     tool_status_dict = tools_status.get("tools", {})
 
-    containment_tools = load_containment_tools_from_db()
+    response_tools = load_response_tools_from_db()
 
     Logger.info(
         f"Tool cache loaded with {len(tool_status_dict)} tools for customer {intcid}, {tool_status_dict}"
     )
     Logger.info(
-        f"Tool cache loaded with {len(containment_tools)} tools for customer {intcid}: {containment_tools}"
+        f"Tool cache loaded with {len(response_tools)} tools for customer {intcid}: {response_tools}"
     )
-    for tool in containment_tools:
+    for tool in response_tools:
         # Get the tool namespace (first two parts)
         tool_parts = tool.get("name").split("/")
         if len(tool_parts) >= 2:
