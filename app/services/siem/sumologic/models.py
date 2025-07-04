@@ -22,6 +22,24 @@ class AlertClassification(BaseModel):
     sub_category: List[str] = Field(default_factory=list)
 
 
+#RAG
+class ExtractedEntity(BaseModel):
+    """
+    Represents an entity extracted from an alert.
+    """
+    type: str
+    value: str
+
+
+class AlertContextEntities(BaseModel):
+    """
+    Represents the context entities extracted from an alert.
+    """
+    entities: List[ExtractedEntity]
+
+
+
+
 class AlertContext(BaseModel):
     """Represents the structured alert context extracted by the LLM."""
 

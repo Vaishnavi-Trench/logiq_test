@@ -1,9 +1,9 @@
 """Sumologic Utils"""
 
-from pltfrm import PropX, Logger2 as Logger, MongoDBManager, RedisManager
+from pltfrm import PropX, Logger2 as Logger, MongoDBManager, AIManager, ElasticsearchManager
 from typing import List, Dict, Any
 import traceback
-
+from app.services.siem.sumologic.models import AlertContextEntities, ExtractedEntity
 
 
 class SumoLogicUtils:
@@ -422,11 +422,99 @@ class SumoLogicUtils:
         Logger.info(f"Using default prompt: {prompt} for source: {source}")
         return prompt
 
+    def extract_entities(self, alert_obj: dict) -> List[Dict[str, Any]]:
+        """
+        Extracts key entities from an alert object, handling both direct dict and embedded raw string formats.
+        For every value matching a pattern, the actual key from the alert is used.
+        """
 
+        response = AIManager.run_prompt_with_structured_output(
+            intcid=self.intcid,
+            prompt_template_name="SUMOLOGIC_ALERT_CONTEXT_ANCHOR_EXTRACTION",
+            prompt_params={
+                "alert": alert_obj,
+            },
+            model_name=PropX.get_property("module.llm.model"),
+            model_class=AlertContextEntities,
+            history_params={
+                "aid": alert_obj.get("aid", ""),
+            },
+            type="alert_context",
+            system_prompt="You are an expert extracting useful entities from alerts. ",
+        )
+        Logger.info(f"Response from AIManager: {response}")
+        if not response or not response["entities"]:
+            Logger.warn("No entities extracted from the alert.")
+            return []
+        entities = []
+        for entity in response["entities"]:
+            if isinstance(entity, ExtractedEntity):
+                entities.append({"type": entity.type, "value": entity.value})
+            elif isinstance(entity, dict) and "type" in entity and "value" in entity:
+                entities.append({"type": entity["type"], "value": entity["value"]})
+            else:
+                Logger.warn(f"Unexpected entity format: {entity}")
+        
+        return entities
 
+    def retrieve_context_for_alert(self, entities: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Retrieve the context for a specific alert based on the extracted entities.
 
+        Args:
+            entities (List[Dict[str, str]]): The extracted entities from the alert.
+            alert (dict): The original alert object.
 
+        Returns:
+            Dict[str, Any]: The context information for the alert.
+        """
+        retrieved_context = {}
 
+        for entity in entities:
+            entity_type = entity["type"]
+            entity_value = entity["value"]
+
+            if entity_type == "source":
+                try:
+                    query_embedding = AIManager.get_vector_embedding("azure-embeddings", entity_value)
+                    if query_embedding:
+                        docs = ElasticsearchManager.get_multiple_best_match_with_params(
+                            index_name="rag_integration",
+                            query_terms=[
+                                {"intcid": self.intcid},
+                                {"type": "index_name"},
+                                {"vendor": "sumologic"}
+                            ],
+                            embedding=query_embedding,
+                        )
+                        # Remove 'embeddings' from each doc
+                        for doc in docs:
+                            doc.pop("embeddings", None)
+                        retrieved_context["source"] = docs
+                except (KeyError, ValueError, TypeError) as e:
+                    print(f"Error retrieving source context for '{entity_value}': {e}")
+
+            else:
+                try:
+                    query_embedding = AIManager.get_vector_embedding("azure-embeddings", entity_type)
+                    if query_embedding:
+                        docs = ElasticsearchManager.get_multiple_best_match_with_params(
+                            index_name="rag_integration",
+                            query_terms=[
+                                {"intcid": self.intcid},
+                                {"type": "index_fields"},
+                                {"vendor": "sumologic"}
+                            ],
+                            embedding=query_embedding,
+                        )
+                        # Remove 'embeddings' from each doc
+                        for doc in docs:
+                            doc.pop("embeddings", None)
+                        retrieved_context[entity_type] = docs
+                except (KeyError, ValueError, TypeError) as e:
+                    print(f"Error retrieving activity for '{entity_value}': {e}")
+                    
+        return retrieved_context
 
 
 

@@ -35,7 +35,6 @@ def is_ignored_index(intcid: str, index_name: str) -> bool:
     ignorance_list = ignorance_list_doc.get("ignorance_list", [])
     return any(re.match(pattern, index_name) for pattern in ignorance_list)
 
-
 async def get_available_indices(intcid: str, task: str) -> dict:
     """
     Get all available indices in SumoLogic using the Partitions API.
@@ -85,7 +84,6 @@ async def get_available_indices(intcid: str, task: str) -> dict:
         Logger.error(traceback.format_exc())
         return {"error": "indices_fetch_error", "message": str(e)}
 
-
 async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
     """
     Get all available fields in SumoLogic using the Fields API.
@@ -133,7 +131,6 @@ async def get_available_fields(intcid: str, task: str, index_name: str) -> dict:
         Logger.error(f"Error fetching fields: {str(e)}")
         Logger.error(traceback.format_exc())
         return {"error": "fields_fetch_error", "message": str(e)}
-
 
 async def sumologic_run_sql_query(
     intcid: str,
@@ -293,7 +290,6 @@ async def sumologic_run_sql_query(
         Logger.error(f"Unexpected error running query: {str(e)}")
         return None
 
-
 async def fetch_security_alerts(
     intcid: str, task: str, start_time: str = None, end_time: str = None
 ) -> dict:
@@ -328,7 +324,6 @@ async def fetch_security_alerts(
 
     return {"security_alerts_data": alerts_created}
 
-
 async def fetch_security_alerts_with_query(
     intcid: str,
     task: str,
@@ -354,7 +349,6 @@ async def fetch_security_alerts_with_query(
 
     return {"alert_query_results": alerts}
 
-
 async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: dict):
     """
     Get context for a specific alert by its ID.
@@ -370,7 +364,7 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
     """
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Fetching context for alert ID: {aid}")
-
+    sumo_logic_utils = SumoLogicUtils(intcid=intcid)
     if isinstance(alert, str):
             try:
                 alert = json.loads(alert)
@@ -378,14 +372,8 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
                 Logger.error(f"Failed to decode alert_context string into a dict: {alert}")
                 return {"error": "alert_context_decode_error", "message": "Failed to decode alert_context from string."}
 
-    sumo_logic_utils = SumoLogicUtils(intcid=intcid)
-    alert_source = alert.get("source", "").lower()  # Get the alert source in lowercase
 
-    if alert_source:
-        prompt_name = sumo_logic_utils.get_prompt_name(alert_source, "alert_context")
-        Logger.info(f"Using prompt template: {prompt_name} for alert source: {alert_source}")
-    else:
-        prompt_name = "SUMOLOGIC_ALERT_CONTEXT_EXTRACTION_PROMPT"
+    prompt_name = "SUMOLOGIC_ALERT_CONTEXT_EXTRACTION_PROMPT"
 
     try:
         env = "unknown"
@@ -561,7 +549,6 @@ async def sumologic_choose_table(
                 "error": f"An unexpected error occurred during table name selection: {e}"
             }
 
-
 async def sumologic_generate_query(
     intcid: str,
     task: str,
@@ -662,7 +649,6 @@ async def sumologic_generate_query(
     Logger.error(traceback.format_exc())
     return {"error": f"An unexpected error occurred during query generation: {str(e)}"}
 
-
 async def sumologic_generate_query_template(
     intcid: str,
     aid: str,
@@ -737,7 +723,6 @@ async def sumologic_generate_query_template(
         "to_time": to_time,
     }
 
-
 async def sumologic_prepare_query(
     intcid: str,
     task: str,
@@ -800,3 +785,15 @@ async def sumologic_prepare_query(
         return {
             "error": f"An unexpected error occurred while preparing the sumologic query query: {str(e)}"
         }
+
+
+
+
+
+
+
+
+
+
+
+
