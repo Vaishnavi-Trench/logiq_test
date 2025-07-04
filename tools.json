@@ -142,6 +142,30 @@
       "output": { "fill": "JSON object with domain registration details" }
     },
     {
+      "name": "intelligence/spycloud/get_alert_context",
+      "description": "Retrieves context information for a specific alert from Spycloud.",
+      "input": [
+        {
+          "name": "task",
+          "type": "string",
+          "description": "The task to perform."
+        },
+        {
+          "name": "alert",
+          "type": "any",
+          "description": "The alert data."
+        },
+        {
+          "name": "aid",
+          "type": "string",
+          "description": "The alert ID."
+        }
+      ],
+      "output": {
+        "fill": "JSON object with the alert context details"
+      }
+    },
+    {
       "name": "cloud/aws/s3/aws_s3_list_files",
       "description": "Lists all files present in a specified AWS S3 bucket. Use this tool to inventory, audit, or manage files stored in Amazon S3 for cloud operations and security reviews.",
       "input": [
