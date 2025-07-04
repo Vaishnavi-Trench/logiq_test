@@ -28,7 +28,7 @@ def get_matching_tables_for_username(intcid):
     )
     try:
         username_filters = [{"intcid": intcid}, {"type": "index_fields"}]
-        username_matching_tables = ElasticsearchManager.get_multiple_best_match(
+        username_matching_tables = ElasticsearchManager.get_multiple_best_match_with_params(
             "rag_integration",
             username_filters,
             username_embedding,
@@ -51,7 +51,7 @@ def get_matching_tables_for_ip(intcid):
     )
     try:
         ip_filters = [{"intcid": intcid}, {"type": "index_fields"}]
-        ip_matching_tables = ElasticsearchManager.get_multiple_best_match(
+        ip_matching_tables = ElasticsearchManager.get_multiple_best_match_with_params(
             "rag_integration",
             ip_filters,
             ip_embedding,
@@ -405,7 +405,7 @@ def generate_kql_queries(alert, alert_context, final_dict, intcid, aid):
         # Use AIManager's structured output to generate KQL queries
         kql_response = AIManager.run_prompt_with_structured_output(
             intcid=intcid,
-            prompt_template_name=PropX.get_property("prompt.kql.alert.context.enrichment"),
+            prompt_template_name="KQL_ALERT_CONTEXT_ENRICHMENT_PROMPT",
             prompt_params={
                 "alert": alert,
                 "alert_context": alert_context,
