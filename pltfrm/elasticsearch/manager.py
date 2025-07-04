@@ -284,7 +284,7 @@ class ElasticsearchManager:
             return None
 
     @staticmethod
-    def get_multiple_best_match(
+    def get_multiple_best_match_with_params(
         index_name: str,
         query_terms: List[Dict[str, Any]],
         embedding: List[float],
