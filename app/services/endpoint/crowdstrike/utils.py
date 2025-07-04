@@ -9,6 +9,7 @@ class CrowdStrikeUtils:
 
     def __init__(self, intcid: str):
         """Initializes the SumologicUtils class."""
+        Logger.info(f"Initializing CrowdStrikeUtils for intcid {intcid}")
         self.intcid = intcid
         self.main_db = PropX.get_property("module.integration.config.db")
         self.integration = PropX.get_property("module.integration.config.collection")
@@ -30,6 +31,7 @@ class CrowdStrikeUtils:
     
     def authenticate(self):
         """Authenticate with CrowdStrike API."""
+        Logger.info(f"Authenticating CrowdStrike Falcon API for intcid {self.intcid}")
         if not self.client_id or not self.secret_key:
             Logger.error("CrowdStrike client_id or secret_key is not set.")
             return None
