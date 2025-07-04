@@ -54,3 +54,4 @@ tiktoken==0.8.0
 tokenizers==0.21.0
 uvicorn==0.34.0
 instructor==1.8.0
+crowdstrike-falconpy==1.5.3
