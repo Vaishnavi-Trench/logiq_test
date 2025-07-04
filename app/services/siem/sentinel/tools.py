@@ -1873,10 +1873,7 @@ async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> D
     ip_present = source_ip_present or target_ip_present
     if username_present and ip_present:
         Logger.info("Both username and (source_ip or target_ip) are present in alert context. Skipping enrichment.")
-        return {
-            "alert_labels_processing_status": False,
-            "reason": "Both username and IP present in alert context. No enrichment needed."
-        }
+        return alert_context
     table_index_name = PropX.get_property("elasticsearch.table.index.name")
     if not table_index_name:
         table_index_name = "tables_index"
@@ -1903,10 +1900,7 @@ async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> D
     
     else:
         Logger.info("Neither username nor IP present in alert context. No enrichment possible.")
-        return {
-            "alert_labels_processing_status": False,
-            "reason": "Neither username nor IP present in alert context."
-        }
+        return alert_context
 
 
     Logger.info("RAG enrichment completed successfully.")
