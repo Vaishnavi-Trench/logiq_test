@@ -5,7 +5,7 @@ from fastapi import APIRouter, Path, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pltfrm import Logger2 as Logger
-from app.services.intelligence.virustotal.tools import get_ip_reputation_report
+from app.services.intelligence.virustotal.tools import get_ip_reputation_report, get_hash_reputation_report, get_url_reputation_report
 from app.services.general.iputils import tools as iptools
 
 
@@ -13,6 +13,14 @@ class IPAddressRequest(BaseModel):
     task: Optional[str] = None
     ip_address: str
 
+class FileHashRequest(BaseModel):
+    task: Optional[str] = None
+    file_hash: str
+
+
+class URLRequest(BaseModel):
+    task: Optional[str] = None
+    url: str
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["virustotal"])
@@ -82,4 +90,74 @@ async def ip_reputation_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to retrieve IP reputation: {str(e)}"},
+        )
+
+@router.post("/get_hash_reputation_report/{intcid}")
+async def hash_reputation_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: FileHashRequest = Body(..., description="File hash request body"),
+):
+    """
+    Get reputation report from VirusTotal for a file hash
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing file hash
+
+    Returns:
+        Reputation report for the provided file hash
+    """
+    file_hash = request.file_hash
+    Logger.info(
+        f"api: /intelligence/virustotal/get_hash_reputation_report/{intcid}: Retrieving reputation for file hash {file_hash}"
+    )
+
+    result = {
+        "file_hash": file_hash,
+    }
+
+    try:
+        # Assuming a function get_hash_reputation_report exists to fetch the report
+        result = get_hash_reputation_report(intcid, file_hash)
+        return result
+    except Exception as e:
+        Logger.error(f"Error retrieving file hash reputation: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to retrieve file hash reputation: {str(e)}"},
+        )
+        
+@router.post("/get_url_reputation_report/{intcid}")
+async def url_reputation_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: URLRequest = Body(..., description="URL request body"),
+):
+    """
+    Get reputation report from VirusTotal for a URL
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing URL
+
+    Returns:
+        Reputation report for the provided URL
+    """
+    url = request.url
+    Logger.info(
+        f"api: /intelligence/virustotal/get_url_reputation_report/{intcid}: Retrieving reputation for URL {url}"
+    )
+
+    result = {
+        "url": url,
+    }
+
+    try:
+        # Assuming a function get_url_reputation_report exists to fetch the report
+        result = get_url_reputation_report(intcid, url)
+        return result
+    except Exception as e:
+        Logger.error(f"Error retrieving URL reputation: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to retrieve URL reputation: {str(e)}"},
         )
