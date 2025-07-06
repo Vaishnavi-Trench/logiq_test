@@ -1,6 +1,6 @@
 """Implements Virustotal Intelligence Tools."""
 
-from app.services.intelligence.virustotal.utils import fetch_ip_report, fetch_hash_report, fetch_url_report 
+from app.services.intelligence.virustotal.utils import fetch_ip_report, fetch_hash_report, fetch_url_report, fetch_domain_report 
 from pltfrm import Logger2 as Logger
 
 
@@ -38,4 +38,16 @@ def get_url_reputation_report(intcid: str, url: str) -> str:
     )
     response = fetch_url_report(intcid, url)
     Logger.debug(f"URL Threat Intel: {response}")
+    return response
+
+def get_domain_reputation_report(intcid: str, domain: str) -> str:
+    """
+    Threat Intelligence tool
+    Retrieves malicious percentage of a specific domain
+    """
+    Logger.debug(
+        f"\ntool:get_domain_report:\nChecking Domain Threat Intel for Domain: {domain} for {intcid}\n"
+    )
+    response = fetch_domain_report(intcid, domain)
+    Logger.debug(f"Domain Threat Intel: {response}")
     return response

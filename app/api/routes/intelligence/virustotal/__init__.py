@@ -5,7 +5,7 @@ from fastapi import APIRouter, Path, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pltfrm import Logger2 as Logger
-from app.services.intelligence.virustotal.tools import get_ip_reputation_report, get_hash_reputation_report, get_url_reputation_report
+from app.services.intelligence.virustotal.tools import get_ip_reputation_report, get_hash_reputation_report, get_url_reputation_report, get_domain_reputation_report
 from app.services.general.iputils import tools as iptools
 
 
@@ -17,10 +17,13 @@ class FileHashRequest(BaseModel):
     task: Optional[str] = None
     file_hash: str
 
-
 class URLRequest(BaseModel):
     task: Optional[str] = None
     url: str
+    
+class DomainRequest(BaseModel):
+    task: Optional[str] = None
+    domain: str
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["virustotal"])
@@ -160,4 +163,39 @@ async def url_reputation_route(
         return JSONResponse(
             status_code=500,
             content={"error": f"Failed to retrieve URL reputation: {str(e)}"},
+        )
+        
+@router.post("/get_domain_reputation_report/{intcid}")
+async def domain_reputation_route(
+    intcid: str = Path(..., description="Customer ID"),
+    request: DomainRequest = Body(..., description="Domain request body"),
+):
+    """
+    Get reputation report from VirusTotal for a domain
+
+    Args:
+        intcid: Customer ID
+        request: Request body containing domain
+
+    Returns:
+        Reputation report for the provided domain
+    """
+    domain = request.domain
+    Logger.info(
+        f"api: /intelligence/virustotal/get_domain_reputation_report/{intcid}: Retrieving reputation for domain {domain}"
+    )
+
+    result = {
+        "domain": domain,
+    }
+
+    try:
+        # Assuming a function get_domain_reputation_report exists to fetch the report
+        result = get_domain_reputation_report(intcid, domain)
+        return result
+    except Exception as e:
+        Logger.error(f"Error retrieving domain reputation: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to retrieve domain reputation: {str(e)}"},
         )

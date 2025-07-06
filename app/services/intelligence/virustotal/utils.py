@@ -148,3 +148,48 @@ def fetch_url_report(intcid, url):
     
     Logger.info(f"URL report fetched for: {url}, report: {report}")
     return report
+
+
+def fetch_domain_report(intcid, domain):
+    """Fetches domain report from VirusTotal."""
+    Logger.info(f"Fetching domain report for: {domain}, intcid: {intcid}")
+
+    virustotal_data_query = {
+        "intcid": intcid,
+        "vendor": "virustotal",
+        "type": "intelligence",
+    }
+
+    integration_db = PropX.get_property("module.integration.config.db")
+    integration_collection = PropX.get_property("module.integration.config.collection")
+    document = MongoDBManager.get_record_by_multiple_fields(
+        integration_db, integration_collection, virustotal_data_query
+    )
+
+    vt_api_key = document.get("api_key")
+
+    url = f"https://www.virustotal.com/api/v3/domains/{domain}"
+    headers = {"accept": "application/json", "x-apikey": vt_api_key}
+
+    response = requests.get(url, headers=headers, timeout=60)
+    response_data = response.json()
+    attributes = response_data.get("data", {}).get("attributes", {})
+    last_analysis_results = attributes.get("last_analysis_results", {})
+    malicious_count = sum(
+        1 for result in last_analysis_results.values() if result["category"] == "malicious"
+    )
+    total_engines = len(last_analysis_results)
+    reputation_score = (
+        f"{malicious_count}/{total_engines}" if total_engines > 0 else "N/A"
+    )
+    
+    report = {
+        "domain": domain,
+        "status": "Valid domain, report fetched",
+        "malicious_count": malicious_count,
+        "total_engines": total_engines,
+        "reputation_score": reputation_score,
+    }
+    
+    Logger.info(f"Domain report fetched for: {domain}, report: {report}")
+    return report
