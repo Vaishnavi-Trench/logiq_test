@@ -3,6 +3,7 @@
 from pltfrm import PropX, Logger2 as Logger, MongoDBManager, AIManager, ElasticsearchManager
 from typing import List, Dict, Any
 import traceback
+from datetime import datetime, timezone
 from app.services.siem.sumologic.models import AlertContextEntities, ExtractedEntity
 
 
@@ -373,24 +374,118 @@ class SumoLogicUtils:
             )
             if record:
                 # Check if the collection has the expected structure
-                if "query_template" in record:
-                    Logger.debug(
-                        f"[sumologic] Found Sumologic Query template data for '{intcid}/{tid}/{question_id}' in MongoDB."
-                    )
-                    return record["query_template"]
-                else:
+                if "query_template" not in record:
                     Logger.warn(
                         f"[sumologic] Sumologic Query template data for '{intcid}/{tid}/{question_id}' does not contain 'query_template' key. Returning None."
                     )
                     return None
+
+                Logger.debug(
+                    f"[sumologic] Found Sumologic Query template data for '{intcid}/{tid}/{question_id}' in MongoDB."
+                )
+
+                if "from_time" in record and "to_time" in record:
+                    # Return the query_template field
+                    return {
+                        "query_template": record["query_template"],
+                        "from_time": record.get("from_time"),
+                        "to_time": record.get("to_time"),
+                    }
+                
+                return record["query_template"]
         except Exception as e:
             Logger.error(
                 f"[sumologic] Failed to push Sumologic Query template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
             )
             return None
-        
+    
+    def push_sumologic_template_data_to_mongo(
+        self,
+        intcid: str,
+        env: str,
+        tid: str,
+        question_id: str,
+        step_id: str,
+        query_template: str,
+        query: str,
+        from_time: str = None,
+        to_time: str = None,
+    ):
+        """
+        Saves or updates the generated Sumologic query template along with metadata to MongoDB.
+
+        Args:
+            intcid (str): Integration/Customer ID.
+            env (str): Environment identifier.
+            tid (str): Triage ID.
+            question_id (str): Question ID within the triage.
+            step_id (str): Step ID for context.
+            query_template (str): The generated Sumologic query template.
+            query (str): The final generated query.
+            from_time (str, optional): The 'from' time for the query. Defaults to None.
+            to_time (str, optional): The 'to' time for the query. Defaults to None.
+        """
+        if not all([intcid, tid, question_id, step_id, query_template]):
+            Logger.warn(
+                "[sumologic] Missing required fields for persisting Sumologic template data. Skipping."
+            )
+            return
+
+        try:
+            filter_doc = {
+                "type": "query_template",
+                "intcid": intcid,
+                "vendor": "sumologic",
+                "tid": tid,
+                "question_id": question_id,
+                "step_id": step_id,
+                "env": env,
+            }
+
+            document = {
+                "type": "query_template",
+                "intcid": intcid,
+                "vendor": "sumologic",
+                "tid": tid,
+                "question_id": question_id,
+                "step_id": step_id,
+                "env": env,
+                "query_template": query_template,
+                "query": query,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            
+            if from_time and to_time:
+                document["from_time"] = from_time
+                document["to_time"] = to_time
+
+
+            main_db = PropX.get_property("module.integration.config.db")
+            query_template_collection = PropX.get_property(
+                "module.query.template.cache.collection"
+            )
+
+            if not main_db or not query_template_collection:
+                Logger.error(
+                    "[sumologic] MongoDB database or collection name not configured in PropX. Cannot persist Sumologic query data."
+                )
+                return
+
+            MongoDBManager.upsert_record(
+                main_db, query_template_collection, filter_doc, document
+            )
+
+            Logger.info(
+                f"[sumologic] Upserted Sumologic query template data to MongoDB for {intcid}/{tid}/{question_id}."
+            )
+
+        except Exception as e:
+            Logger.error(
+                f"[sumologic] Failed to push Sumologic query template data to MongoDB for {intcid}/{tid}/{question_id}: {e}\n{traceback.format_exc()}"
+            )
+
     def get_prompt_name(self, source: str, prompt_type: str) -> str:
-        
+
         """
         Get the prompt name based on the source and prompt type.
 

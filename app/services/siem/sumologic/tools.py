@@ -437,13 +437,13 @@ async def sumologic_choose_table(
     Logger.info(f"Found {len(index_list)} indices for integration {intcid}")
 
     ## Commented temporarily to avoid MongoDB dependency
-    # try:
-    #     table_name = sumologic_utils.get_table_name_from_mongo(
-    #         intcid, "sumologic", env, tid, question_id, step_id
-    #     )
-    #     reason = "Table name found in MongoDB template."
-    # except Exception as mongo_e:
-    #     Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
+    try:
+        table_name = sumologic_utils.get_table_name_from_mongo(
+            intcid, "sumologic", env, tid, question_id, step_id
+        )
+        reason = "Table name found in MongoDB template."
+    except Exception as mongo_e:
+        Logger.warn(f"Failed to push AI-selected table name to MongoDB: {mongo_e}")
 
     table_name = None
 
@@ -512,21 +512,21 @@ async def sumologic_choose_table(
                 }
 
             # Temporarily commented out MongoDB push to avoid dependency issues
-            # try:
-            #     sumologic_utils.push_table_name_to_mongo(
-            #         intcid,
-            #         "sumologic",
-            #         env,
-            #         tid,
-            #         question_id,
-            #         step_id,
-            #         triage_question,
-            #         table_name,
-            #     )
-            # except Exception as mongo_e:
-            #     Logger.warn(
-            #         f"Failed to push AI-selected table name to MongoDB: {mongo_e}"
-            #     )
+            try:
+                sumologic_utils.push_table_name_to_mongo(
+                    intcid,
+                    "sumologic",
+                    env,
+                    tid,
+                    question_id,
+                    step_id,
+                    triage_question,
+                    table_name,
+                )
+            except Exception as mongo_e:
+                Logger.warn(
+                    f"Failed to push AI-selected table name to MongoDB: {mongo_e}"
+                )
 
             Logger.info(f"Sumologic table chosen by AI: {table_name}")
             reason = "Table name selected by AI based on context and available tables."
@@ -625,6 +625,23 @@ async def sumologic_generate_query(
             # Check for unresolved placeholders like <<Alert.key.value>>
             if final_query and not re.search(r"<<[^>]+>>", final_query):
                 Logger.info(f"Query template successfully resolved: {query_template}")
+                
+                try:
+                    sumologic_utils = SumoLogicUtils(intcid=intcid)
+                    sumologic_utils.push_sumologic_template_data_to_mongo(
+                        intcid=intcid,
+                        env=env,
+                        tid=tid,
+                        question_id=question_id,
+                        step_id=step_id,
+                        query_template=query_template,
+                        query=final_query,
+                        from_time=query_template_resp.get("from_time"),
+                        to_time=query_template_resp.get("to_time"),
+                    )
+                except Exception as e:
+                    Logger.error(f"Error pushing final sumologic query to MongoDB: {e}")
+
                 return {
                     "query_template": query_template,
                     "query": final_query,
@@ -665,21 +682,28 @@ async def sumologic_generate_query_template(
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Generating query template for table: {table}")
 
-    # try:
-    #     _query_template = sumologic_utils.get_sumologic_template_data_from_mongo(
-    #         intcid=intcid,
-    #         env=alert_context["env"],
-    #         tid=tid,
-    #         question_id=question_id,
-    #         step_id=step_id,
-    #     )
+    try:
+        _query_data = sumologic_utils.get_sumologic_template_data_from_mongo(
+            intcid=intcid,
+            env=alert_context["env"],
+            tid=tid,
+            question_id=question_id,
+            step_id=step_id,
+        )
 
-    #     if _query_template and _query_template != "":
-    #         Logger.info(f"Using cached sumologic query template for {intcid}, table: {tables}")
-    #         return {"query_templates": [_query_template]}
-    # except Exception as e:
-    #     Logger.error(f"Error getting sumologic query template from MongoDB: {e}")
-    #     pass
+        if _query_data:
+            Logger.info(f"Using cached sumologic query template for {intcid}, table: {table}")
+            if isinstance(_query_data, dict):
+                return {
+                    "query_template": _query_data.get("query_template"),
+                    "from_time": _query_data.get("from_time"),
+                    "to_time": _query_data.get("to_time"),
+                }
+            elif isinstance(_query_data, str):
+                return {"query_template": _query_data, "from_time": None, "to_time": None}
+    except Exception as e:
+        Logger.error(f"Error getting sumologic query template from MongoDB: {e}")
+        pass
 
     # for table in tables:
     Logger.info(f"Processing table: {table}")
@@ -716,6 +740,8 @@ async def sumologic_generate_query_template(
     from_time = response.get("from_time", None)
     to_time = response.get("to_time", None)
     Logger.info(f"Query Template: {query_template}")
+    
+    
 
     return {
         "query_template": query_template,
