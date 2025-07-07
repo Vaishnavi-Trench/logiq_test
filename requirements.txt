@@ -24,8 +24,8 @@ google-cloud-storage==3.1.0
 grpc-google-iam-v1==0.14.2
 grpcio==1.60.1
 grpcio-status==1.60.1
-guardrails-ai==0.5.15
-guardrails-api-client==0.3.13
+#guardrails-ai==0.5.15
+#guardrails-api-client==0.3.13
 guardrails_hub_types==0.0.4
 httpx==0.27.2
 ipinfo==5.1.1
