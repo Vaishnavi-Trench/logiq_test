@@ -3,7 +3,7 @@
 from typing import Optional
 from fastapi import APIRouter, Path, Body
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from pltfrm import Logger2 as Logger
 from app.services.intelligence.virustotal.tools import get_ip_reputation_report, get_hash_reputation_report, get_url_reputation_report, get_domain_reputation_report
 from app.services.general.iputils import tools as iptools
@@ -12,18 +12,34 @@ from app.services.general.iputils import tools as iptools
 class IPAddressRequest(BaseModel):
     task: Optional[str] = None
     ip_address: str
+    aid : str = Field(default=None, description="The alert ID.")
+    tid : str = Field(default=None, description="The task ID.")
+    question_id: str = Field(default=None, description="The question ID.")
+    triage_question: str = Field(default=None, description="The triage question.")
 
 class FileHashRequest(BaseModel):
     task: Optional[str] = None
     file_hash: str
+    aid : str = Field(default=None, description="The alert ID.")
+    tid : str = Field(default=None, description="The task ID.")
+    question_id: str = Field(default=None, description="The question ID.")
+    triage_question: str = Field(default=None, description="The triage question.")
 
 class URLRequest(BaseModel):
     task: Optional[str] = None
     url: str
-    
+    aid : str = Field(default=None, description="The alert ID.")
+    tid : str = Field(default=None, description="The task ID.")
+    question_id: str = Field(default=None, description="The question ID.")
+    triage_question: str = Field(default=None, description="The triage question.")
+
 class DomainRequest(BaseModel):
     task: Optional[str] = None
     domain: str
+    aid : str = Field(default=None, description="The alert ID.")
+    tid : str = Field(default=None, description="The task ID.")
+    question_id: str = Field(default=None, description="The question ID.")
+    triage_question: str = Field(default=None, description="The triage question.")
 
 # Create router without prefix (prefix is added by parent router)
 router = APIRouter(tags=["virustotal"])
@@ -45,6 +61,10 @@ async def ip_reputation_route(
         Reputation report for the provided IP address
     """
     ip_address = request.ip_address
+    tid = request.tid
+    aid = request.aid
+    question_id = request.question_id
+    triage_question = request.triage_question
     Logger.info(
         f"api: /intelligence/virustotal/get_ip_reputation_report/{intcid}: Retrieving reputation for IP {ip_address}"
     )
@@ -86,7 +106,7 @@ async def ip_reputation_route(
         return result
 
     try:
-        result = get_ip_reputation_report(intcid, ip_address)
+        result = get_ip_reputation_report(intcid, ip_address, tid, aid, question_id, triage_question)
         return result
     except Exception as e:
         Logger.error(f"Error retrieving IP reputation: {str(e)}")
@@ -111,6 +131,10 @@ async def hash_reputation_route(
         Reputation report for the provided file hash
     """
     file_hash = request.file_hash
+    aid = request.aid
+    tid = request.tid
+    question_id = request.question_id
+    triage_question = request.triage_question
     Logger.info(
         f"api: /intelligence/virustotal/get_hash_reputation_report/{intcid}: Retrieving reputation for file hash {file_hash}"
     )
@@ -121,7 +145,7 @@ async def hash_reputation_route(
 
     try:
         # Assuming a function get_hash_reputation_report exists to fetch the report
-        result = get_hash_reputation_report(intcid, file_hash)
+        result = get_hash_reputation_report(intcid, file_hash, aid, tid, question_id, triage_question)
         return result
     except Exception as e:
         Logger.error(f"Error retrieving file hash reputation: {str(e)}")
@@ -146,6 +170,10 @@ async def url_reputation_route(
         Reputation report for the provided URL
     """
     url = request.url
+    aid = request.aid
+    tid = request.tid
+    question_id = request.question_id
+    triage_question = request.triage_question
     Logger.info(
         f"api: /intelligence/virustotal/get_url_reputation_report/{intcid}: Retrieving reputation for URL {url}"
     )
@@ -156,7 +184,7 @@ async def url_reputation_route(
 
     try:
         # Assuming a function get_url_reputation_report exists to fetch the report
-        result = get_url_reputation_report(intcid, url)
+        result = get_url_reputation_report(intcid, url, aid, tid, question_id, triage_question)
         return result
     except Exception as e:
         Logger.error(f"Error retrieving URL reputation: {str(e)}")
@@ -181,6 +209,10 @@ async def domain_reputation_route(
         Reputation report for the provided domain
     """
     domain = request.domain
+    aid = request.aid
+    tid = request.tid
+    question_id = request.question_id
+    triage_question = request.triage_question
     Logger.info(
         f"api: /intelligence/virustotal/get_domain_reputation_report/{intcid}: Retrieving reputation for domain {domain}"
     )
@@ -191,7 +223,7 @@ async def domain_reputation_route(
 
     try:
         # Assuming a function get_domain_reputation_report exists to fetch the report
-        result = get_domain_reputation_report(intcid, domain)
+        result = get_domain_reputation_report(intcid, domain, aid, tid, question_id, triage_question)
         return result
     except Exception as e:
         Logger.error(f"Error retrieving domain reputation: {str(e)}")

@@ -1,6 +1,7 @@
 """This module contains utility functions for VirusTotal intelligence agent."""
 
 import re
+import datetime
 
 import requests
 
@@ -58,6 +59,8 @@ def fetch_ip_report(intcid, ip):
         "total_engines": total_engines,
         "reputation_score": reputation_score,
     }
+    
+    
     Logger.info(f"IP report fetched for: {ip}, report: {report}")
     return report
 
@@ -149,7 +152,6 @@ def fetch_url_report(intcid, url):
     Logger.info(f"URL report fetched for: {url}, report: {report}")
     return report
 
-
 def fetch_domain_report(intcid, domain):
     """Fetches domain report from VirusTotal."""
     Logger.info(f"Fetching domain report for: {domain}, intcid: {intcid}")
@@ -193,3 +195,35 @@ def fetch_domain_report(intcid, domain):
     
     Logger.info(f"Domain report fetched for: {domain}, report: {report}")
     return report
+
+
+def push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
+    """Pushes the report to MongoDB."""
+    Logger.info(f"Pushing report to MongoDB: intcid: {intcid}")
+
+    db_name = PropX.get_property("module.integration.config.db")
+    collection_name = PropX.get_property("module.intelligence.records.collection")
+
+    filter_query = {"tid": tid, "aid": aid, "question_id": question_id}
+
+    update_data = {
+        "$set": {
+            "intcid": intcid,
+            "triage_question": triage_question,
+            "report": response,
+            "updated_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+    }
+
+    result = MongoDBManager.upsert_record(
+        db_name, collection_name, filter_query, update_data
+    )
+
+    if result is not None:
+        Logger.info(f"Report upserted to MongoDB for filter: {filter_query}")
+        return True
+    
+    Logger.error(f"Failed to upsert report to MongoDB for filter: {filter_query}")
+    return False
+
+

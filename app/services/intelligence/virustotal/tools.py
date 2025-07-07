@@ -1,10 +1,11 @@
 """Implements Virustotal Intelligence Tools."""
 
-from app.services.intelligence.virustotal.utils import fetch_ip_report, fetch_hash_report, fetch_url_report, fetch_domain_report 
+import datetime
+from app.services.intelligence.virustotal.utils import fetch_ip_report, fetch_hash_report, fetch_url_report, fetch_domain_report, push_report_to_mongo 
 from pltfrm import Logger2 as Logger
 
 
-def get_ip_reputation_report(intcid: str, ip_address: str) -> str:
+def get_ip_reputation_report(intcid: str, ip_address: str, tid: str, aid: str, question_id: str, triage_question: str) -> str:
     """
     Threat Intelligence tool
     Retrieves malicious percentage of a specific IP
@@ -14,9 +15,14 @@ def get_ip_reputation_report(intcid: str, ip_address: str) -> str:
     )
     response = fetch_ip_report(intcid, ip_address)
     Logger.debug(f"IP Threat Intel: {response}")
+    if push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
+        Logger.debug(f"IP report successfully pushed to MongoDB for {intcid}")
+    else:
+        Logger.error(f"Failed to push IP report to MongoDB for {intcid}")
+    
     return response
 
-def get_hash_reputation_report(intcid: str, file_hash: str) -> str:
+def get_hash_reputation_report(intcid: str, file_hash: str, aid: str, tid: str, question_id: str, triage_question: str) -> str:
     """
     Threat Intelligence tool
     Retrieves malicious percentage of a specific file hash
@@ -26,9 +32,15 @@ def get_hash_reputation_report(intcid: str, file_hash: str) -> str:
     )
     response = fetch_hash_report(intcid, file_hash)
     Logger.debug(f"File Hash Threat Intel: {response}")
+
+    if push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
+        Logger.debug(f"File hash report successfully pushed to MongoDB for {intcid}")
+    else:
+        Logger.error(f"Failed to push file hash report to MongoDB for {intcid}")
+
     return response
 
-def get_url_reputation_report(intcid: str, url: str) -> str:
+def get_url_reputation_report(intcid: str, url: str, aid: str, tid: str, question_id: str, triage_question: str) -> str:
     """
     Threat Intelligence tool
     Retrieves malicious percentage of a specific URL
@@ -38,9 +50,14 @@ def get_url_reputation_report(intcid: str, url: str) -> str:
     )
     response = fetch_url_report(intcid, url)
     Logger.debug(f"URL Threat Intel: {response}")
+    
+    if push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
+        Logger.debug(f"URL report successfully pushed to MongoDB for {intcid}")
+    else:
+        Logger.error(f"Failed to push URL report to MongoDB for {intcid}")
     return response
 
-def get_domain_reputation_report(intcid: str, domain: str) -> str:
+def get_domain_reputation_report(intcid: str, domain: str, aid: str, tid: str, question_id: str, triage_question: str) -> str:
     """
     Threat Intelligence tool
     Retrieves malicious percentage of a specific domain
@@ -50,4 +67,10 @@ def get_domain_reputation_report(intcid: str, domain: str) -> str:
     )
     response = fetch_domain_report(intcid, domain)
     Logger.debug(f"Domain Threat Intel: {response}")
+
+    if push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
+        Logger.debug(f"Domain report successfully pushed to MongoDB for {intcid}")
+    else:
+        Logger.error(f"Failed to push Domain report to MongoDB for {intcid}")
+
     return response
