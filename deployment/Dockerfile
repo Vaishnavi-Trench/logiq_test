@@ -1,19 +1,23 @@
-# Use the official slim Python base image (Python 3.11)
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
-# Install necessary system packages
-RUN apt-get update && apt-get install -y \
+# Set environment variables for NLTK data
+ENV NLTK_DATA=/usr/lib/nltk_data
+
+# Install necessary system packages using apk (Alpine package manager)
+RUN apk add --no-cache \
     gcc \
     g++ \
     musl-dev \
     libffi-dev \
     bash \
-    libsasl2-dev \
-    libssl-dev \
+    libsasl \
+    openssl-dev \
     librdkafka-dev \
-    && python -m ensurepip \
-    && pip install --upgrade pip setuptools \
-    && rm -rf /var/lib/apt/lists/*
+    python3-dev \
+    py3-pip \
+    libstdc++ \
+    && python3 -m ensurepip \
+    && pip3 install --upgrade pip setuptools
 
 # Set the working directory inside the container
 WORKDIR /usr/lib/trench/modules/logiq
@@ -21,25 +25,30 @@ WORKDIR /usr/lib/trench/modules/logiq
 # Copy your Python application code into the container
 COPY . /usr/lib/trench/modules/logiq/
 
-# Install Python dependencies from the requirements file
+# Install Python dependencies globally (you can skip this if venv covers it)
 RUN pip install -r requirements.txt
 
-# Set up the virtual environment (same as your service file path)
+# Set up a virtual environment
 RUN python -m venv /usr/lib/trench/envs/logiq-env
 
-# Activate the virtual environment and install necessary dependencies inside it
-RUN /usr/lib/trench/envs/logiq-env/bin/pip install -r /usr/lib/trench/modules/logiq/requirements.txt
+# Install requirements inside the virtual environment
+RUN /usr/lib/trench/envs/logiq-env/bin/pip install --upgrade pip setuptools && \
+    /usr/lib/trench/envs/logiq-env/bin/pip install -r /usr/lib/trench/modules/logiq/requirements.txt
 
+# Download NLTK data (globally and into venv if needed)
 RUN pip install nltk && \
-    python -c "import nltk; nltk.download('punkt', download_dir='/usr/lib/nltk_data')"
-RUN /usr/lib/trench/envs/logiq-env/bin/pip install nltk && \
-    python -c "import nltk; nltk.download('punkt', download_dir='/usr/lib/nltk_data')"
+    python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
 
-# Copy the exec_nteg.sh script into the container (no need to set executable via RUN)
+RUN /usr/lib/trench/envs/logiq-env/bin/pip install nltk && \
+    /usr/lib/trench/envs/logiq-env/bin/python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA')"
+
+# Copy your script
 COPY ./deployment/exec_logiq.sh /usr/lib/trench/modules/logiq/exec_logiq.sh
 
-# Expose any necessary ports if your application requires it (uncomment and modify if needed)
+# Expose a port if needed
 EXPOSE 8080
 
-# Use the entrypoint script to wait for the secrets and start the application
+# Use entrypoint
 CMD ["/bin/sh", "/usr/lib/trench/modules/logiq/exec_logiq.sh"]
+
+
