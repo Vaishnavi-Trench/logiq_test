@@ -20,9 +20,9 @@ class GWorkspaceRequest(BaseModel):
 
 class EmailRequest(BaseModel):
     task: Optional[str] = None
-    recipient_email: str
+    to: str
     subject: str
-    message_body: str
+    body: str
 
 class ResetPasswordRequest(BaseModel):
     task: Optional[str] = None
@@ -107,24 +107,24 @@ async def send_email_route(
     intcid: str,
     request: EmailRequest
 ):
-    recipient_email = request.recipient_email
+    to = request.to
     subject = request.subject
-    message_body = request.message_body
+    body = request.body
 
-    if not recipient_email or not subject or not message_body:
+    if not to or not subject or not body:
         Logger.error("Recipient email, subject, and message body are required to send an email.")
         return JSONResponse(
             status_code=400,
             content={"error": "Recipient email, subject, and message body are required to send an email."}
         )
 
-    Logger.info(f"Sending email to {recipient_email} in integration {intcid}")
+    Logger.info(f"Sending email to {to} in integration {intcid}")
 
     result = await send_email(
         intcid=intcid,
-        recipient_email=recipient_email,
+        to=to,
         subject=subject,
-        message_body=message_body
+        body=body
     )
     
     return result

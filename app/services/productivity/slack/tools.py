@@ -5,7 +5,7 @@ from pltfrm import Logger2 as Logger
 
 
 
-async def send_notification(intcid: str, message: str) -> dict:
+async def send_notification(intcid: str, subject: str, body: str, to: Optional[str]) -> dict:
     """Send a message to a Slack channel using the configured webhook URL."""
     try:
         slack_utils = SlackUtils(intcid=intcid)
@@ -18,7 +18,7 @@ async def send_notification(intcid: str, message: str) -> dict:
             }
         
         payload = {
-            "text": message
+            "text": f"*{subject}*\n{body}"
         }
         response = await slack_utils.send_message(payload)
         

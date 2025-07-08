@@ -11,7 +11,9 @@ import json
 
 class SlackRequest(BaseModel):
     task: Optional[str] = None
-    message: str
+    to: Optional[str] = None
+    subject: str
+    body: str
 
 router = APIRouter(tags=["slack"])
 
@@ -20,12 +22,13 @@ async def send_notification_route(
     intcid: str,
     request: SlackRequest
 ):
-    message = request.message
-    if not message:
-        Logger.error("Message is required to send to Slack.")
+    subject = request.subject
+    body = request.body
+    if not subject:
+        Logger.error("Subject is required to send to Slack.")
         return JSONResponse(
             status_code=400,
-            content={"error": "Message is required to send to Slack."}
+            content={"error": "Subject is required to send to Slack."}
         )
     
     Logger.info(f"Sending message to Slack for integration {intcid}")
@@ -33,7 +36,8 @@ async def send_notification_route(
     # Call the service function to send the message
     result = await send_notification(
         intcid=intcid,
-        message=message
+        subject=subject,
+        body=body
     )
-    
+
     return result
