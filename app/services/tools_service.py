@@ -127,6 +127,8 @@ def get_tools(intcid: str) -> List[Dict]:
         vendor = tool_parts[1]
         # Check if the tool namespace is available
         if tool_status_dict.get(tool_namespace) == "available":
+            # Create a copy of the tool to avoid mutating the cached object
+            tool_copy = tool.copy()
             desc = None
             if type != "general":
                 # Fetch fetch integration record
@@ -138,9 +140,9 @@ def get_tools(intcid: str) -> List[Dict]:
                 if tool_config:
                     desc = tool_config["desc"]  # Assign string directly, not a set
             if desc:
-                tool["description"] = f"{desc} {tool.get('description')}"
-            available_tools.append(tool)
-            available_tool_names.append(tool.get("name"))
+                tool_copy["description"] = f"{desc} {tool_copy.get('description')}"
+            available_tools.append(tool_copy)
+            available_tool_names.append(tool_copy.get("name"))
 
     Logger.info(
         f"Returning {len(available_tools)} available tools for customer {intcid}, names: {available_tool_names}"
@@ -199,6 +201,8 @@ def get_response_tools(intcid: str) -> List[Dict]:
         vendor = tool_parts[1]
         # Check if the tool namespace is available
         if tool_status_dict.get(tool_namespace) == "available":
+            # Create a copy of the tool to avoid mutating the cached object
+            tool_copy = tool.copy()
             desc = None
             if type != "general":
                 # Fetch fetch integration record
@@ -210,9 +214,9 @@ def get_response_tools(intcid: str) -> List[Dict]:
                 if tool_config:
                     desc = tool_config["desc"]  # Assign string directly, not a set
             if desc:
-                tool["description"] = f"{desc} {tool.get('description')}"
-            available_tools.append(tool)
-            available_tool_names.append(tool.get("name"))
+                tool_copy["description"] = f"{desc} {tool_copy.get('description')}"
+            available_tools.append(tool_copy)
+            available_tool_names.append(tool_copy.get("name"))
 
     Logger.info(
         f"Returning {len(available_tools)} available tools for customer {intcid}, names: {available_tool_names}"
