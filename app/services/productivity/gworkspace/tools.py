@@ -209,7 +209,7 @@ async def reset_user_password(
 
 
 async def send_email(
-    intcid: str, recipient_email: str, subject: str, message_body: str
+    intcid: str, to: str, subject: str, body: str
 ) -> dict:
     """Send an email using the delegated admin's Gmail account."""
     try:
@@ -229,9 +229,9 @@ async def send_email(
         # Create email message using the utility function
         email_content = gworkspace_utils.create_email_message(
             sender=sender_email,
-            to=recipient_email,
+            to=to,
             subject=subject,
-            message_text=message_body,
+            message_text=body,
         )
 
         if not email_content:
@@ -255,7 +255,7 @@ async def send_email(
                 "status": False,
                 "description": "Failed to send email. No response from Gmail API.",
             }
-        description = f"Email sent successfully to {recipient_email} from {sender_email}."
+        description = f"Email sent successfully to {to} from {sender_email}."
         Logger.info(description)
         return {"status": True, "description": description}
 
