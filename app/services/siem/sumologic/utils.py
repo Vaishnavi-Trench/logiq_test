@@ -2,6 +2,7 @@
 
 from pltfrm import PropX, Logger2 as Logger, MongoDBManager, AIManager, ElasticsearchManager
 from typing import List, Dict, Any
+from collections import defaultdict
 import traceback
 from datetime import datetime, timezone
 from app.services.siem.sumologic.models import AlertContextEntities, ExtractedEntity
@@ -19,6 +20,7 @@ class SumoLogicUtils:
         self.toolsmetadata = PropX.get_property("module.integration.metadata.collection")
         self.templates_db = PropX.get_property("module.templates.collection")
         self.trenchrecords_db = PropX.get_property("module.trenchrun.collection")
+        self.alert_context_collection = PropX.get_property("module.alert-context.collection")
         config = MongoDBManager.get_record_by_multiple_fields(
             self.main_db,
             self.integration,
@@ -552,7 +554,9 @@ class SumoLogicUtils:
         
         return entities
 
-    def retrieve_context_for_alert(self, entities: List[Dict[str, str]]) -> Dict[str, Any]:
+    def retrieve_context_for_alert(self,
+        grouped_entities: Dict[str, List[str]],
+    ) -> Dict[str, Any]:
         """
         Retrieve the context for a specific alert based on the extracted entities.
 
@@ -565,31 +569,30 @@ class SumoLogicUtils:
         """
         retrieved_context = {}
 
-        for entity in entities:
-            entity_type = entity["type"]
-            entity_value = entity["value"]
-
+        for entity_type, entity_values in grouped_entities.items():
             if entity_type == "source":
-                try:
-                    query_embedding = AIManager.get_vector_embedding("azure-embeddings", entity_value)
-                    if query_embedding:
-                        docs = ElasticsearchManager.get_multiple_best_match_with_params(
-                            index_name="rag_integration",
-                            query_terms=[
-                                {"intcid": self.intcid},
-                                {"type": "index_name"},
-                                {"vendor": "sumologic"}
-                            ],
-                            embedding=query_embedding,
-                        )
-                        # Remove 'embeddings' from each doc
-                        for doc in docs:
-                            doc.pop("embeddings", None)
-                        retrieved_context["source"] = docs
-                except (KeyError, ValueError, TypeError) as e:
-                    print(f"Error retrieving source context for '{entity_value}': {e}")
-
+                # 'source' is special, we use its value for vector search
+                for entity_value in entity_values: # Should typically be just one
+                    try:
+                        query_embedding = AIManager.get_vector_embedding("azure-embeddings", entity_value)
+                        if query_embedding:
+                            docs = ElasticsearchManager.get_multiple_best_match_with_params(
+                                index_name="rag_integration",
+                                query_terms=[
+                                    {"intcid": self.intcid},
+                                    {"type": "index_name"},
+                                    {"vendor": "sumologic"}
+                                ],
+                                embedding=query_embedding,
+                            )
+                            # Remove 'embeddings' from each doc
+                            for doc in docs:
+                                doc.pop("embeddings", None)
+                            retrieved_context["source"] = docs
+                    except Exception as e:
+                        print(f"Error retrieving source context for '{entity_value}': {e}")
             else:
+                # For other types, we get context based on the entity type itself
                 try:
                     query_embedding = AIManager.get_vector_embedding("azure-embeddings", entity_type)
                     if query_embedding:
@@ -606,11 +609,225 @@ class SumoLogicUtils:
                         for doc in docs:
                             doc.pop("embeddings", None)
                         retrieved_context[entity_type] = docs
-                except (KeyError, ValueError, TypeError) as e:
-                    print(f"Error retrieving activity for '{entity_value}': {e}")
+                except Exception as e:
+                    # Since we query by type, we log the type in case of error
+                    print(f"Error retrieving activity context for type '{entity_type}': {e}")
                     
         return retrieved_context
 
 
+    def group_entities_by_type(self, entities: List[Dict[str, str]]) -> Dict[str, List[str]]:
+        """
+        Groups a list of entity dictionaries by their 'type'.
+
+        Args:
+            entities: A list of dictionaries, where each dictionary has a 'type' and 'value'.
+
+        Returns:
+            A dictionary where keys are entity types and values are lists of corresponding entity values.
+        """
+        grouped = defaultdict(list)
+        for entity in entities:
+            grouped[entity['type']].append(entity['value'])
+        return dict(grouped)
+
+    def prepare_sumo_query_for_rag(self, context:Dict[str, Any], grouped_entities:Dict[str, List[str]]) -> List:
+        grouped = []
+        index_map = {}
+        # Iterate through the context, skipping 'source' which has a different structure
+        for entity_type, fields in context.items():
+            if entity_type == "source":
+                continue
+            if fields:
+                for field in fields:
+                    idx = field.get("index_name")
+                    fname = field.get("field_name")
+                    if idx and fname:
+                        if idx not in index_map:
+                            index_map[idx] = set()
+                        index_map[idx].add(fname)
+
+        for idx, fset in index_map.items():
+            grouped.append({"index": idx, "fields": list(fset)})
+
+        Logger.info(f"Grouped fields by index: {grouped}")
+        
+        
+        
+        # The entities are already grouped, so we can use the 'grouped_entities' variable directly.
 
 
+
+        # Example: grouped_entities = {'ip_address': set([...]), 'hostname': set([...]), ...}
+
+        # When generating queries, use all values for each type, but keep them grouped
+        # This allows you to generate more precise queries per entity type if needed
+        # For now, flatten all values for the where clause as before
+        entity_values = []
+        for vals in grouped_entities.values():
+            entity_values.extend(list(vals))
+
+        sumo_queries = []
+        # Define related entity types to link with ip_address
+        RELATED_ENTITY_TYPES = ['hostname', 'username', 'email']
+
+        for group in grouped[:4]:
+            index = group["index"]
+            fields = group["fields"]
+            if not fields:
+                continue
+
+            # This loop creates a separate query for each entity type within the index group
+            for entity_type, entity_values_list in grouped_entities.items():
+                
+                if entity_type == 'ip_address':
+                    # Special handling for ip_address to link with other entities
+                    ip_conditions = []
+                    related_conditions = []
+
+                    # Get ip_address conditions
+                    ip_fields = {
+                        f_info['field_name'] for f_info in context.get('ip_address', [])
+                        if f_info.get('index_name') == index and f_info['field_name'] in fields
+                    }
+                    if ip_fields:
+                        ip_values = grouped_entities.get('ip_address', [])
+                        ip_conditions.extend(f'{field} = "{value}"' for field in ip_fields for value in ip_values)
+
+                    # Get conditions for related types (hostname, username, email)
+                    for related_type in RELATED_ENTITY_TYPES:
+                        if related_type in grouped_entities:
+                            related_fields = {
+                                f_info['field_name'] for f_info in context.get(related_type, [])
+                                if f_info.get('index_name') == index and f_info['field_name'] in fields
+                            }
+                            if related_fields:
+                                related_values = grouped_entities.get(related_type, [])
+                                related_conditions.extend(f'{field} = "{value}"' for field in related_fields for value in related_values)
+                    
+                    if ip_conditions and related_conditions:
+                        where_clause = f"({' or '.join(ip_conditions)}) and ({' or '.join(related_conditions)})"
+                        
+                        query_lines = [f'_collector="{index}"']
+                        json_parts = [f'json "{f}" as {f}' for f in fields]
+                        if json_parts:
+                            query_lines.append(" | ".join(json_parts))
+                        
+                        query_lines.append(f"where {where_clause}")
+                        query_lines.append("limit 1")
+
+                        sumo_queries.append({
+                            "index": index,
+                            "entity_type": "ip_address_correlated", # Use a special name
+                            "query_exec": " | ".join(query_lines),
+                            "query_log": "\n".join(query_lines)
+                        })
+
+                elif entity_type in RELATED_ENTITY_TYPES:
+                    # Standard logic for other entity types, excluding ip_address
+                    relevant_fields_for_type = {
+                        field_info['field_name']
+                        for field_info in context.get(entity_type, [])
+                        if field_info.get('index_name') == index and field_info['field_name'] in fields
+                    }
+
+                    if not relevant_fields_for_type:
+                        continue
+
+                    query_lines = [f'_collector="{index}"']
+                    json_parts = [f'json "{f}" as {f}' for f in fields]
+                    if json_parts:
+                        query_lines.append(" | ".join(json_parts))
+
+                    where_parts = []
+                    for field in relevant_fields_for_type:
+                        field_conditions = [f'{field} = "{value}"' for value in entity_values_list]
+                        if field_conditions:
+                            where_parts.extend(field_conditions)
+
+                    if where_parts:
+                        query_lines.append("where " + " or ".join(where_parts))
+                        query_lines.append("limit 1")
+
+                        sumo_queries.append({
+                            "index": index,
+                            "entity_type": entity_type,
+                            "query_exec": " | ".join(query_lines),
+                            "query_log": "\n".join(query_lines)
+                        })
+                        
+        Logger.info(f"Generated SumoLogic queries: {sumo_queries}")
+        return sumo_queries
+
+
+    def get_alert_context_from_mongo(
+        self, 
+        intcid: str, 
+        aid: str
+    ) -> Dict[str, Any]:
+        """
+        Retrieves the alert context from MongoDB for a given alert ID.
+
+        Args:
+            intcid (str): Integration/Customer ID.
+            aid (str): Alert ID.
+
+        Returns:
+            dict: The alert context data if found, otherwise an empty dict.
+        """
+        try:
+            filter = {
+                "intcid": intcid,
+                "aid": aid,
+                "type": "alert_context",
+                "vendor": "sumologic"
+            }
+            record = MongoDBManager.get_record_by_multiple_fields(
+                self.main_db, self.alert_context_collection, filter
+            )
+            if record:
+                return record.get("alert_context")
+            else:
+                Logger.warn(f"[sumologic] No alert context found for intcid: {intcid}, aid: {aid}")
+                return {}
+        except Exception as e:
+            Logger.error(f"[sumologic] Error retrieving alert context from MongoDB: {e}")
+            return {}
+        
+    def push_alert_context_to_mongo(
+        self, 
+        intcid: str, 
+        aid: str, 
+        alert_context: Dict[str, Any]
+    ):
+        """
+        Pushes the alert context to MongoDB for a given alert ID.
+
+        Args:
+            intcid (str): Integration/Customer ID.
+            aid (str): Alert ID.
+            alert_context (dict): The alert context data to store.
+        """
+        try:
+            filter = {
+                "intcid": intcid,
+                "aid": aid,
+                "type": "alert_context",
+                "vendor": "sumologic"
+            }
+            document = {
+                "intcid": intcid,
+                "aid": aid,
+                "type": "alert_context",
+                "vendor": "sumologic",
+                "alert_context": alert_context,
+                "updated_at": datetime.now(timezone.utc)
+            }
+            MongoDBManager.upsert_record(
+                self.main_db, self.alert_context_collection, filter, document
+            )
+            Logger.info(f"[sumologic] Alert context for {intcid}/{aid} pushed to MongoDB.")
+            return True
+        except Exception as e:
+            Logger.error(f"[sumologic] Error pushing alert context to MongoDB: {e}")
+            return False
