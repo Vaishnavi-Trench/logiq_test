@@ -50,6 +50,11 @@ async def disable_user_account(intcid: str, email_address: str) -> dict:
             .update(userKey=email_address, body=user_body)
             .execute()
         )
+        if not result:
+            return {
+                "status": False,
+                "description": f"Failed to disable account for {email_address}. No response from API.",
+            }
 
         description = f"Account successfully disabled for user: {email_address}."
         Logger.info(description)
@@ -114,6 +119,12 @@ async def enable_user_account(intcid: str, email_address: str) -> dict:
             .update(userKey=email_address, body=user_body)
             .execute()
         )
+        
+        if not result:
+            return {
+                "status": False,
+                "description": f"Failed to enable account for {email_address}. No response from API.",
+            }
 
         description = f"Account successfully enabled for user: {email_address}."
         Logger.info(description)
@@ -170,7 +181,15 @@ async def reset_user_password(
         }
 
         Logger.info(f"Resetting password for: {email_address}")
-        admin_service.users().update(userKey=email_address, body=user_body).execute()
+        result = (
+            admin_service.users().update(userKey=email_address, body=user_body).execute()
+        )
+
+        if not result:
+            return {
+                "status": False,
+                "description": f"Failed to reset password for {email_address}. No response from API.",
+            }
 
         description = f"Password reset successful for user: {email_address}. New temporary password: {new_password}"
         Logger.info(description)
@@ -178,8 +197,7 @@ async def reset_user_password(
 
         return {
             "status": True,
-            "description": description,
-            "new_password": new_password,
+            "description": description
         }
 
     except Exception as e:
