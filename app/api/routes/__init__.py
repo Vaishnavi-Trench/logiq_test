@@ -8,6 +8,7 @@ from app.api.routes.cloud import router as cloud_router
 from app.api.routes.siem import router as siem_router
 from app.api.routes.general import router as general_router
 from app.api.routes.endpoint import router as endpoint_router
+from app.api.routes.productivity import router as productivity_router
 
 # Create main API router
 api_router = APIRouter()
@@ -32,3 +33,6 @@ api_router.include_router(general_router, prefix="/general")
 
 # Include endpoint router with explicit prefix
 api_router.include_router(endpoint_router, prefix="/endpoint")
+
+# Include productivity router with explicit prefix
+api_router.include_router(productivity_router, prefix="/productivity")
