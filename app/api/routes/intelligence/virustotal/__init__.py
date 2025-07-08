@@ -19,7 +19,7 @@ class IPAddressRequest(BaseModel):
 
 class FileHashRequest(BaseModel):
     task: Optional[str] = None
-    file_hash: str
+    hash: str
     aid : str = Field(default=None, description="The alert ID.")
     tid : str = Field(default=None, description="The task ID.")
     question_id: str = Field(default=None, description="The question ID.")
@@ -130,22 +130,22 @@ async def hash_reputation_route(
     Returns:
         Reputation report for the provided file hash
     """
-    file_hash = request.file_hash
+    hash= request.hash
     aid = request.aid
     tid = request.tid
     question_id = request.question_id
     triage_question = request.triage_question
     Logger.info(
-        f"api: /intelligence/virustotal/get_hash_reputation_report/{intcid}: Retrieving reputation for file hash {file_hash}"
+        f"api: /intelligence/virustotal/get_hash_reputation_report/{intcid}: Retrieving reputation for file hash {hash}"
     )
 
     result = {
-        "file_hash": file_hash,
+        "hash": hash,
     }
 
     try:
         # Assuming a function get_hash_reputation_report exists to fetch the report
-        result = get_hash_reputation_report(intcid, file_hash, aid, tid, question_id, triage_question)
+        result = get_hash_reputation_report(intcid, hash, aid, tid, question_id, triage_question)
         return result
     except Exception as e:
         Logger.error(f"Error retrieving file hash reputation: {str(e)}")

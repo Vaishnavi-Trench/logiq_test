@@ -22,15 +22,15 @@ def get_ip_reputation_report(intcid: str, ip_address: str, tid: str, aid: str, q
     
     return response
 
-def get_hash_reputation_report(intcid: str, file_hash: str, aid: str, tid: str, question_id: str, triage_question: str) -> str:
+def get_hash_reputation_report(intcid: str, hash: str, aid: str, tid: str, question_id: str, triage_question: str) -> str:
     """
     Threat Intelligence tool
     Retrieves malicious percentage of a specific file hash
     """
     Logger.debug(
-        f"\ntool:get_hash_report:\nChecking File Hash Threat Intel for Hash: {file_hash} for {intcid}\n"
+        f"\ntool:get_hash_report:\nChecking File Hash Threat Intel for Hash: {hash} for {intcid}\n"
     )
-    response = fetch_hash_report(intcid, file_hash)
+    response = fetch_hash_report(intcid, hash)
     Logger.debug(f"File Hash Threat Intel: {response}")
 
     if push_report_to_mongo(intcid, tid, aid, question_id, triage_question, response):
