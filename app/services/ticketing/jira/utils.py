@@ -24,7 +24,7 @@ class JiraUtils:
             self.integration,
             {
                 "intcid": self.intcid,
-                "type": "productivity",
+                "type": "ticketing",
                 "vendor": "jira",
                 "recordType": "investigation",
             },
