@@ -1,6 +1,8 @@
 import json
 import traceback
 import requests
+import datetime
+from datetime import timezone
 from langchain_core.prompts import PromptTemplate
 from typing import Optional
 from typing import Dict, Any, List
@@ -1239,7 +1241,7 @@ async def sentinel_get_single_matching_record(
 
 
 async def sentinel_get_alert_context(
-    intcid: str, task: str, aid: str, alert: any
+    intcid: str, task: str, aid: str, alert: any, alert_name: str = ""
 ) -> dict:
     """Retrieves context for a given Sentinel alert/event using AI.
 
@@ -1417,7 +1419,7 @@ async def sentinel_get_alert_context(
         final_enriched_alert_context = None
 
 
-        rag_enriched_alert_context = await enrich_alert_context_using_rag(intcid, aid, alert, alert_context)
+        rag_enriched_alert_context = await enrich_alert_context_using_rag(intcid, aid, alert, alert_context, alert_name)
         Logger.info(f"RAG Enriched Alert Context: {rag_enriched_alert_context}")
         if user_name_value:
             # Always extract the username before '@'
@@ -1436,7 +1438,7 @@ async def sentinel_get_alert_context(
             return final_enriched_alert_context
         else:
             Logger.info("No user enrichment performed. Returning basic alert context.")
-            return alert_context
+            return final_enriched_alert_context
     except Exception as e:
         Logger.error(
             f"Error during Sentinel context extraction: {e}\n{traceback.format_exc()}"
@@ -1863,7 +1865,7 @@ async def get_failed_login_details(intcid: str, alert_context: dict, task: str) 
         return {"error": f"An error occurred while retrieving failed login details: {e}"}
     
 
-async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> Dict: 
+async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context, sanitized_alert_name="") -> Dict: 
     Logger.info("[NODE] Executing node: enrich_alert_context_using_rag")
 
     extracted_fields = alert_context.get('extracted_fields', {}) if isinstance(alert_context, dict) else {}
@@ -1874,6 +1876,54 @@ async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> D
     if username_present and ip_present:
         Logger.info("Both username and (source_ip or target_ip) are present in alert context. Skipping enrichment.")
         return alert_context
+    
+    # Check MongoDB first if sanitized_alert_name is provided
+    final_ans_dict = None
+    main_db = PropX.get_property("module.integration.config.db")
+    if not main_db:
+        main_db = "main_db"
+
+    query_templates_collection = PropX.get_property("module.query.template.cache.collection")
+
+    if sanitized_alert_name:
+        try:
+
+            
+            mongo_filter = {
+                "type": "alert_context_enrichment_template",
+                "intcid": intcid,
+                "alert_name": sanitized_alert_name
+            }
+            cached_template = MongoDBManager.get_record_by_multiple_fields(
+                main_db, query_templates_collection, mongo_filter
+            )
+            
+            if cached_template:
+                Logger.info(f"Found cached final_ans_dict for alert: {sanitized_alert_name}")
+                final_ans_dict = cached_template.get("matching_indices_and_fields", {})
+                if final_ans_dict:
+                    Logger.info("Using cached final_ans_dict for enrichment")
+                    grouped_by_index = cached_template.get("index_groups", {})
+                    
+                    enriched_alert_context = alert_context
+                    
+                    if username_present and not ip_present:
+                        Logger.info("Username present in alert context. Enriching with user-based KQL queries using cached data.")
+                        enriched_alert_context = await run_kql_and_collect(
+                            final_ans_dict, grouped_by_index, alert, aid, alert_context, intcid, use_user_kql=True
+                        )
+                    elif ip_present and not username_present:
+                        Logger.info("IP address present in alert context. Enriching with IP-based KQL queries using cached data.")
+                        enriched_alert_context = await run_kql_and_collect(
+                            final_ans_dict, grouped_by_index, alert, aid, alert_context, intcid, use_user_kql=False
+                        )
+                    
+                    Logger.info("RAG enrichment completed successfully using cached data.")
+                    return enriched_alert_context
+        except Exception as e:
+            Logger.error(f"Error checking MongoDB for cached template: {e}")
+    
+    # If not found in cache, proceed with original logic
     table_index_name = PropX.get_property("elasticsearch.table.index.name")
     if not table_index_name:
         table_index_name = "tables_index"
@@ -1902,6 +1952,47 @@ async def enrich_alert_context_using_rag(intcid, aid, alert, alert_context) -> D
         Logger.info("Neither username nor IP present in alert context. No enrichment possible.")
         return alert_context
 
+    # Store filtered final_ans_dict in MongoDB if sanitized_alert_name is provided
+    if sanitized_alert_name and final_ans_dict and enriched_alert_context:
+        try:
+            # Get tables_with_discoveries from the enriched context
+            tables_with_discoveries = enriched_alert_context.get("extracted_fields", {}).get("tables_with_discoveries", [])
+            Logger.info(f"Tables with discoveries: {tables_with_discoveries}")
+            
+            # Filter final_ans_dict to only include indices and fields present in tables_with_discoveries
+            filtered_final_ans_dict = {}
+            filtered_grouped_by_index = {}
+            
+            for table_name in tables_with_discoveries:
+                if table_name in final_ans_dict:
+                    filtered_final_ans_dict[table_name] = final_ans_dict[table_name]
+                if table_name in grouped_by_index:
+                    filtered_grouped_by_index[table_name] = grouped_by_index[table_name]
+            
+            if filtered_final_ans_dict:              
+                
+                mongo_filter = {
+                    "type": "alert_context_enrichment_template",
+                    "intcid": intcid,
+                    "alert_name": sanitized_alert_name
+                }
+                
+                document = {
+                    "type": "alert_context_enrichment_template",
+                    "intcid": intcid,
+                    "alert_name": sanitized_alert_name,
+                    "matching_indices_and_fields": filtered_final_ans_dict,
+                    "index_groups": filtered_grouped_by_index,
+                    "created_at": datetime.datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.datetime.now(timezone.utc).isoformat()
+                }
+                
+                MongoDBManager.insert_record(main_db, query_templates_collection, document)
+                Logger.info(f"Stored filtered final_ans_dict in MongoDB for alert: {sanitized_alert_name} (tables: {list(filtered_final_ans_dict.keys())})")
+            else:
+                Logger.info(f"No data to store in MongoDB - no tables with discoveries found for alert: {sanitized_alert_name}")
+        except Exception as e:
+            Logger.error(f"Error storing filtered final_ans_dict in MongoDB: {e}")
 
     Logger.info("RAG enrichment completed successfully.")
     return enriched_alert_context

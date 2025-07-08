@@ -142,6 +142,7 @@ class SentinelGetAlertContextRequest(BaseModel):
     task: Optional[str] = None
     aid: str = Field(..., description="The alert ID.")
     alert: Any = Field(..., description="The Sentinel alert/event content.")
+    alert_name: Optional[str] = Field(default="", description="The alert name for MongoDB caching.")
 
 
 class GenerateSentinelQueryTemplateRequest(BaseModel):
@@ -736,7 +737,8 @@ async def get_alert_context_route(
             intcid,
             request.task,
             request.aid,
-            request.alert
+            request.alert,
+            request.alert_name
         )
         return result
     except Exception as e:
