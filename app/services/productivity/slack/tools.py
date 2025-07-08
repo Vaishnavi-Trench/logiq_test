@@ -20,7 +20,7 @@ async def send_notification(intcid: str, subject: str, body: str, to: Optional[s
         payload = {
             "text": f"*{subject}*\n{body}"
         }
-        response = await slack_utils.send_message(payload)
+        response = slack_utils.send_message(payload)
         
         return response
     except Exception as e:

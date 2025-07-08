@@ -24,6 +24,7 @@ async def send_notification_route(
 ):
     subject = request.subject
     body = request.body
+    to = request.to
     if not subject:
         Logger.error("Subject is required to send to Slack.")
         return JSONResponse(
@@ -37,7 +38,8 @@ async def send_notification_route(
     result = await send_notification(
         intcid=intcid,
         subject=subject,
-        body=body
+        body=body,
+        to=to
     )
 
     return result
