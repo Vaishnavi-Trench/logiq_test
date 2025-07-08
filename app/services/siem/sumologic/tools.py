@@ -140,7 +140,7 @@ async def sumologic_run_sql_query(
     to_time: Optional[str] = None,
     query_timezone: str = "UTC",
     wait_time: int = 5,
-    max_wait_iterations: int = 60,
+    max_wait_iterations: int = 20,
 ) -> Optional[dict]:
     """
     Run a query against the SumoLogic API and return the complete job status.
@@ -233,6 +233,8 @@ async def sumologic_run_sql_query(
                         parsed_results = [
                             r.get("map") for r in results_data.get("records", [])
                         ]
+                        Logger.info(f"Deleting job {job_id} after fetching results.")
+                        session.delete(status_url)
                         return {"query_results": parsed_results}
 
                     elif message_count > 0:
@@ -259,10 +261,14 @@ async def sumologic_run_sql_query(
                                         all_parsed_results.append(
                                             {"_raw": raw_log_string}
                                         )
+                        Logger.info(f"Deleting job {job_id} after fetching results.")
+                        session.delete(status_url)
                         return {"query_results": all_parsed_results}
 
                     else:
                         Logger.info("Query returned no results.")
+                        Logger.info(f"Deleting job {job_id} as it is complete.")
+                        session.delete(status_url)
                         return {"query_results": []}
 
                 elif state in ["CANCELLED", "FORCE CANCELLED", "FAILED"]:
@@ -365,14 +371,52 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
     Logger.info(f"Task: {task} - Integration ID: {intcid}")
     Logger.info(f"Fetching context for alert ID: {aid}")
     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
+    try:
+        #check if alert_context is in mongodb
+        alert_context = sumo_logic_utils.get_alert_context_from_mongo(intcid, aid)
+        if alert_context:
+            Logger.info(f"Found alert context in MongoDB for alert ID: {aid}")
+            return alert_context
+    except Exception as e:
+        Logger.error(f"Error fetching alert context from MongoDB: {str(e)}")
+
     if isinstance(alert, str):
-            try:
-                alert = json.loads(alert)
-            except json.JSONDecodeError:
+        try:
+            alert = json.loads(alert)
+        except json.JSONDecodeError:
                 Logger.error(f"Failed to decode alert_context string into a dict: {alert}")
                 return {"error": "alert_context_decode_error", "message": "Failed to decode alert_context from string."}
 
 
+    entities = sumo_logic_utils.extract_entities(alert)
+    Logger.info(f"Extracted entities: {entities}")
+    
+    grouped_entities = sumo_logic_utils.group_entities_by_type(entities)
+    Logger.info(f"Grouped entities: {grouped_entities}")
+    
+    context = sumo_logic_utils.retrieve_context_for_alert(grouped_entities)
+    Logger.info(f"Retrieved context for alert: {context}")
+    
+    sumo_queries = sumo_logic_utils.prepare_sumo_query_for_rag(
+        context=context, grouped_entities=grouped_entities
+    )
+    
+    
+    sumo_query_results = []
+    for query_info in sumo_queries:
+        result = await sumologic_run_sql_query(
+            intcid=intcid, task=task, query=query_info["query_exec"],
+            from_time=query_info.get("from_time", None),
+            to_time=query_info.get("to_time", None),
+        )
+        sample_logs = result.get("query_results", [])
+        if sample_logs:  # Only add if not empty
+            sumo_query_results.append({
+                "index": query_info["index"],
+                "entity_type": query_info["entity_type"],
+                "sample_logs": sample_logs
+            })
+    
     prompt_name = "SUMOLOGIC_ALERT_CONTEXT_EXTRACTION_PROMPT"
 
     try:
@@ -385,7 +429,7 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
                     alert
                 ),  # This now contains either the original alert/incident or the list of fetched alerts
                 "env": env,
-                "requirement": task,
+                "sample_logs": sumo_query_results
             },
             model_name=PropX.get_property("module.llm.model"),
             model_class=sumologic_models.AlertContextResponse,
@@ -403,7 +447,70 @@ async def sumologic_get_alert_context(intcid: str, task: str, aid: str, alert: d
         alert_context = sumo_logic_utils.transform_alert_context(
             input_data=alert_context
         )
+
+        # entities = sumo_logic_utils.extract_entities(alert)
+        # Logger.info(f"Extracted entities: {entities}")
+        
+        # grouped_entities = sumo_logic_utils.group_entities_by_type(entities)
+        # Logger.info(f"Grouped entities: {grouped_entities}")
+        
+        # context = sumo_logic_utils.retrieve_context_for_alert(grouped_entities)
+        # Logger.info(f"Retrieved context for alert: {context}")
+        
+        # sumo_queries = sumo_logic_utils.prepare_sumo_query_for_rag(
+        #     context=context, grouped_entities=grouped_entities
+        # )
+        
+        
+        # sumo_query_results = []
+        # for query_info in sumo_queries:
+        #     result = await sumologic_run_sql_query(
+        #         intcid=intcid, task=task, query=query_info["query_exec"],
+        #         from_time=query_info.get("from_time", None),
+        #         to_time=query_info.get("to_time", None),
+        #     )
+        #     sample_logs = result.get("query_results", [])
+        #     if sample_logs:  # Only add if not empty
+        #         sumo_query_results.append({
+        #             "index": query_info["index"],
+        #             "entity_type": query_info["entity_type"],
+        #             "sample_logs": sample_logs
+        #         })
+                
+        # if sumo_query_results:
+        #     enriched_context = AIManager.run_prompt_with_structured_output(
+        #         intcid=intcid,
+        #         prompt_template_name="SUMOLOGIC_ENRICH_ALERT_CONTEXT_PROMPT",
+        #         prompt_params={
+        #             "alert_context": alert_context,
+        #             "sample_logs": sumo_query_results,
+        #         },
+        #         model_name=PropX.get_property("module.llm.model"),
+        #         model_class=sumologic_models.AlertContextResponse,
+        #         history_params={
+        #             "aid": aid,
+        #             "subtype": "alert_context",
+        #         },
+        #         type="triage",
+        #         system_prompt="You are an expert in understanding Sumologic Alerts. Your task is to extract context parameters from given input which included received alert.",
+        #     )
+        #     Logger.info(f"AI response for enriched alert context: {enriched_context}")
+        #     sumo_logic_utils = SumoLogicUtils(intcid=intcid)
+        #     alert_context = enriched_context
+            
+
         alert_context["env"] = env  # Ensure env is included
+
+        status = sumo_logic_utils.push_alert_context_to_mongo(
+            intcid=intcid,
+            aid=aid,
+            alert_context=alert_context
+        )
+        if status:
+            Logger.info(f"Alert context successfully pushed to MongoDB for alert ID: {aid}")
+        else:
+            Logger.warn(f"Failed to push alert context to MongoDB for alert ID: {aid}")
+
         return alert_context
 
     except Exception as e:
