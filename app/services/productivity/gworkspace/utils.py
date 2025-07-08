@@ -10,11 +10,11 @@ import secrets
 import string
 
 class GworkspaceUtils:
-    """Utility class for CrowdStrike operations."""
+    """Utility class for Google Workspace operations."""
 
     def __init__(self, intcid: str):
-        """Initializes the SumologicUtils class."""
-        Logger.info(f"Initializing CrowdStrikeUtils for intcid {intcid}")
+        """Initializes the GworkspaceUtils class."""
+        Logger.info(f"Initializing GworkspaceUtils for intcid {intcid}")
         self.intcid = intcid
         self.main_db = PropX.get_property("module.integration.config.db")
         self.integration = PropX.get_property("module.integration.config.collection")
