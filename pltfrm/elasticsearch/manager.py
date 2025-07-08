@@ -288,7 +288,7 @@ class ElasticsearchManager:
         index_name: str,
         query_terms: List[Dict[str, Any]],
         embedding: List[float],
-        threshold: float = 0.8,
+        threshold: float = 0.6,
         max_results: int = 10,
     ) -> List[Dict[str, Any]]:
         """Retrieve multiple relevant documents using kNN search.
