@@ -1438,7 +1438,7 @@ async def sentinel_get_alert_context(
             return final_enriched_alert_context
         else:
             Logger.info("No user enrichment performed. Returning basic alert context.")
-            return final_enriched_alert_context
+            return rag_enriched_alert_context
     except Exception as e:
         Logger.error(
             f"Error during Sentinel context extraction: {e}\n{traceback.format_exc()}"
