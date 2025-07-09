@@ -32,6 +32,11 @@ async def contain_host(intcid: str, hostname: str) -> dict:
     Logger.info(f"Controlling host containment for {hostname} in integration {intcid}")
     crowdstrike_utils = CrowdStrikeUtils(intcid=intcid)
     falcon = crowdstrike_utils.authenticate()
+
+    # Hardcoding hostname for testing
+    hostname = "osxr-amandal.local"
+    
+    
     host_ids = await get_host_ids(intcid, hostname)
     if not host_ids:
         Logger.info("No host IDs found to contain.")
@@ -50,6 +55,11 @@ async def lift_containment(intcid: str, hostname: str) -> dict:
     """
     crowdstrike_utils = CrowdStrikeUtils(intcid=intcid)
     falcon = crowdstrike_utils.authenticate()
+    
+    # Hardcoding hostname for testing
+    hostname = "osxr-amandal.local"
+    
+    
     host_ids = await get_host_ids(intcid, hostname)
     if not host_ids:
         Logger.info("No host IDs found to lift containment.")
