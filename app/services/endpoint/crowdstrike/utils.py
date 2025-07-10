@@ -38,3 +38,31 @@ class CrowdStrikeUtils:
         
         falcon = Hosts(client_id=self.client_id, client_secret=self.secret_key)
         return falcon
+    
+    def get_hostname_from_mongo(self) -> Any:
+        """Get the hostname from MongoDB."""
+        Logger.info(f"Fetching hostname from MongoDB for intcid {self.intcid}")
+        filter = {
+            "intcid": self.intcid,
+            "recordType": "containment",
+            "type": "containment_details",
+        }
+        record = MongoDBManager.get_record_by_multiple_fields(
+            self.main_db,
+            self.integration,
+            filter
+        )
+        if not record:
+            Logger.error("No record found in MongoDB for the given intcid.")
+            return {"status": False, "description": "No record found in MongoDB."}
+        if not record['containment']:
+            description = "Containment is not enabled in the integration."
+            return {"status": False, "description": description}
+        
+        
+        hostname = record.get("crowdstrike", "")
+        if not hostname:
+            Logger.error("Hostname not found in the record.")
+            return {"status": True, "hostname": "", "description": "Hostname not found in the record."}
+
+        return {"status": True, "hostname": hostname, "description": "Using test credentials."}

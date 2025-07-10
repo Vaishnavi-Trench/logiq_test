@@ -33,10 +33,13 @@ async def contain_host(intcid: str, hostname: str) -> dict:
     crowdstrike_utils = CrowdStrikeUtils(intcid=intcid)
     falcon = crowdstrike_utils.authenticate()
 
-    # Hardcoding hostname for testing
-    hostname = "osxr-amandal.local"
-    
-    
+
+    hostname_response = crowdstrike_utils.get_hostname_from_mongo()
+
+    if not hostname_response['status']:
+        return hostname_response
+
+    hostname = hostname_response['hostname'] if hostname_response['hostname'] else hostname
     host_ids = await get_host_ids(intcid, hostname)
     if not host_ids:
         Logger.info("No host IDs found to contain.")
@@ -58,8 +61,12 @@ async def lift_containment(intcid: str, hostname: str) -> dict:
     crowdstrike_utils = CrowdStrikeUtils(intcid=intcid)
     falcon = crowdstrike_utils.authenticate()
     
-    # Hardcoding hostname for testing
-    hostname = "osxr-amandal.local"
+    hostname_response = crowdstrike_utils.get_hostname_from_mongo()
+
+    if not hostname_response['status']:
+        return hostname_response
+
+    hostname = hostname_response['hostname'] if hostname_response['hostname'] else hostname
     
     
     host_ids = await get_host_ids(intcid, hostname)
