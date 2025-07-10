@@ -790,6 +790,7 @@ async def sumologic_generate_query_template(
     Logger.info(f"Generating query template for table: {table}")
 
     try:
+        Logger.info(f"intcid: {intcid}, env: {alert_context['env']}, tid: {tid}, question_id: {question_id}, step_id: {step_id}")
         _query_data = sumologic_utils.get_sumologic_template_data_from_mongo(
             intcid=intcid,
             env=alert_context["env"],
