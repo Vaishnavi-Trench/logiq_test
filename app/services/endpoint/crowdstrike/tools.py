@@ -44,9 +44,11 @@ async def contain_host(intcid: str, hostname: str) -> dict:
     response = falcon.perform_action(action_name="contain", ids=host_ids)
     Logger.info(f"Containment response: {response}")
     if response["status_code"] in [200, 202]:
-        return {"status": True}
+        description = f"{hostname} has been successfully contained."
+        return {"status": True, "description": description}
     else:
-        return {"status": False}
+        description = f"Failed to contain the host {hostname}."
+        return {"status": False, "description": description}
 
 
 async def lift_containment(intcid: str, hostname: str) -> dict:
@@ -67,6 +69,8 @@ async def lift_containment(intcid: str, hostname: str) -> dict:
     response = falcon.perform_action(action_name="lift_containment", ids=host_ids)
     Logger.info(f"Lift containment response: {response}")
     if response["status_code"] in [200, 202]:
-        return {"status": True}
+        description = f"{hostname} containment has been successfully lifted."
+        return {"status": True, "description": description}
     else:
-        return {"status": False}
+        description = f"Failed to lift containment for {hostname}."
+        return {"status": False, "description": description}
