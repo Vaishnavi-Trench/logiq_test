@@ -159,7 +159,7 @@ async def reset_user_password(
     try:
         
         # Hardcoded email for testing
-        email_address = "amandal@ocrolus.com"
+        email_address = "soc_automation@ocrolus.com"
         
         
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
