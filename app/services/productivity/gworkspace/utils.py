@@ -187,13 +187,13 @@ class GworkspaceUtils:
             Logger.error(f"Could not get user info for {email_address}: {e}")
             return None
 
-    def generate_random_password(self, length: int = 12) -> str:
+    def generate_random_password(self, length: int = 16) -> str:
         """Generate a random password with specified length."""
         # Define character sets
         lowercase = string.ascii_lowercase
         uppercase = string.ascii_uppercase
         digits = string.digits
-        special_chars = "!@#$%^&*"
+        special_chars = "@#$*"
         # Ensure password has at least one character from each set
         password = [
             secrets.choice(lowercase),
@@ -227,3 +227,31 @@ class GworkspaceUtils:
         except Exception as e:
             Logger.error(f"Failed to create email message: {e}")
             return None
+        
+    def get_email_from_mongo(self) -> Any:
+        """Get the email from MongoDB."""
+        Logger.info(f"Fetching email from MongoDB for intcid {self.intcid}")
+        filter = {
+            "intcid": self.intcid,
+            "recordType": "containment",
+            "type": "containment_details",
+        }
+        record = MongoDBManager.get_record_by_multiple_fields(
+            self.main_db,
+            self.integration,
+            filter
+        )
+        if not record:
+            Logger.error("No record found in MongoDB for the given intcid.")
+            return {"status": False, "description": "No record found in MongoDB."}
+        if not record['containment']:
+            description = "Containment is not enabled in the integration."
+            return {"status": False, "description": description}
+
+
+        email = record.get("gworkspace", "")
+        if not email:
+            Logger.error("Email not found in the record.")
+            return {"status": True, "email": "", "description": "Email not found in the record."}
+
+        return {"status": True, "email": email, "description": "Using test credentials."}

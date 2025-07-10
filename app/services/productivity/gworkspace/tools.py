@@ -8,11 +8,14 @@ async def disable_user_account(intcid: str, email_address: str) -> dict:
     """Disable/suspend a Google Workspace user account."""
 
     try:
-        # Hardcoded email for testing
-        email_address = "amandal@ocrolus.com"
-        
-        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
+        
+        email_address_response = gworkspace_utils.get_email_from_mongo()
+
+        if not email_address_response['status']:
+            return email_address_response
+
+        email_address = email_address_response['email'] if email_address_response['email'] else email_address
         delegated_creds = gworkspace_utils.delegated_auth()
 
         if not delegated_creds:
@@ -83,11 +86,15 @@ async def enable_user_account(intcid: str, email_address: str) -> dict:
 
     try:
         
-        # Hardcoded email for testing
-        email_address = "amandal@ocrolus.com"
-        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
         delegated_creds = gworkspace_utils.delegated_auth()
+        
+        email_address_response = gworkspace_utils.get_email_from_mongo()
+
+        if not email_address_response['status']:
+            return email_address_response
+
+        email_address = email_address_response['email'] if email_address_response['email'] else email_address
 
         if not delegated_creds:
             Logger.error(f"Could not get delegated credentials for intcid {intcid}")
@@ -159,10 +166,15 @@ async def reset_user_password(
     try:
         
         # Hardcoded email for testing
-        email_address = "soc_automation@ocrolus.com"
-        
-        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
+
+        email_address_response = gworkspace_utils.get_email_from_mongo()
+
+        if not email_address_response['status']:
+            return email_address_response
+
+        email_address = email_address_response['email'] if email_address_response['email'] else email_address
+        Logger.info(f"Resetting password for user: {email_address}")
         delegated_creds = gworkspace_utils.delegated_auth()
 
         if not delegated_creds:

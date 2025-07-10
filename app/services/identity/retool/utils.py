@@ -2,7 +2,7 @@
 
 import requests
 from bs4 import BeautifulSoup
-from pltfrm import Logger2 as Logger
+from pltfrm import PropX, Logger2 as Logger, MongoDBManager
 
 
 def check_username_existence(email, domain, login_url):
@@ -72,3 +72,45 @@ def check_username_existence(email, domain, login_url):
         # Close the session to clean up resources
         if 'session' in locals():
             session.close()
+            
+def get_domain_url_from_mongo(intcid):
+    """
+    Retrieves the domain and login URL from MongoDB for a given integration ID.
+    
+    Args:
+        intcid (str): The integration ID to look up.
+        
+    Returns:
+        tuple: A tuple containing the domain and login URL.
+    """
+    # This function should interact with MongoDB to retrieve the domain and login URL.
+    # For now, we will return hardcoded values for testing purposes.
+    
+    db = PropX.get_property("module.integration.config.db")
+    collection = PropX.get_property("module.integration.config.collection")
+    
+    query_filter = {
+        "intcid": intcid,
+        "vendor": "retool",
+        "recordType": "investigation",
+        "type": "identity"
+    }
+    
+    Logger.info(f"db: {db}, collection: {collection}, query_filter: {query_filter}")
+    record = MongoDBManager.get_record_by_multiple_fields(
+        db=db,
+        collection_name=collection,
+        filters=query_filter
+    )
+    
+    if not record:
+        Logger.error(f"No record found for intcid: {intcid}")
+        return None, None
+    
+    # Example hardcoded values
+    domain = record.get("api_key", "")
+    login_url = record.get("url", "")
+    
+    Logger.info(f"Retrieved domain: {domain}, login_url: {login_url} for intcid: {intcid}")
+
+    return domain, login_url

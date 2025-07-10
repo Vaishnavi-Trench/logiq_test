@@ -68,7 +68,6 @@ async def lift_containment(intcid: str, hostname: str) -> dict:
 
     hostname = hostname_response['hostname'] if hostname_response['hostname'] else hostname
     
-    
     host_ids = await get_host_ids(intcid, hostname)
     if not host_ids:
         Logger.info("No host IDs found to lift containment.")

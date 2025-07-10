@@ -33,7 +33,7 @@ async def check_user_existence_route(
         JSONResponse: Response indicating whether the user exists or not.
     """
     Logger.info(f"Checking existence of user: {request.email} in integration {intcid}")
-    response = check_user_existence(request.email)
+    response = check_user_existence(intcid, request.email)
     
     if response["status"]:
         Logger.info(f"User '{request.email}' exists.")
