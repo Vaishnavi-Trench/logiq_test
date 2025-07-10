@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import json
 from pltfrm import Logger2 as Logger
-from app.services.intelligence.retool.tools import check_user_existence
+from app.services.identity.retool.tools import check_user_existence
 from app.services.general.iputils import tools as iptools
 
 

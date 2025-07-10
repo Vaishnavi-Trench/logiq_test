@@ -1,5 +1,5 @@
 import datetime
-from app.services.intelligence.retool.utils import check_username_existence
+from app.services.identity.retool.utils import check_username_existence
 from pltfrm import Logger2 as Logger
 
 
