@@ -8,6 +8,10 @@ async def disable_user_account(intcid: str, email_address: str) -> dict:
     """Disable/suspend a Google Workspace user account."""
 
     try:
+        # Hardcoded email for testing
+        email_address = "amandal@ocrolus.com"
+        
+        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
         delegated_creds = gworkspace_utils.delegated_auth()
 
@@ -19,6 +23,7 @@ async def disable_user_account(intcid: str, email_address: str) -> dict:
             }
 
         # First, check if user exists
+        
         Logger.info(f"Checking if user exists: {email_address}")
         user_info = gworkspace_utils.get_user_info(email_address)
         if user_info is None:
@@ -77,6 +82,10 @@ async def enable_user_account(intcid: str, email_address: str) -> dict:
     """Enable/unsuspend a Google Workspace user account."""
 
     try:
+        
+        # Hardcoded email for testing
+        email_address = "amandal@ocrolus.com"
+        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
         delegated_creds = gworkspace_utils.delegated_auth()
 
@@ -86,7 +95,7 @@ async def enable_user_account(intcid: str, email_address: str) -> dict:
                 "status": False,
                 "description": f"Authentication failed for {email_address}. Check integration configuration.",
             }
-
+        
         # First, check if user exists
         Logger.info(f"Checking if user exists: {email_address}")
         user_info = gworkspace_utils.get_user_info(email_address)
@@ -148,6 +157,11 @@ async def reset_user_password(
 ) -> dict:
     """Reset password for a Google Workspace user."""
     try:
+        
+        # Hardcoded email for testing
+        email_address = "amandal@ocrolus.com"
+        
+        
         gworkspace_utils = GworkspaceUtils(intcid=intcid)
         delegated_creds = gworkspace_utils.delegated_auth()
 
