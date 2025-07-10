@@ -59,4 +59,3 @@ uvicorn==0.34.0
 instructor==1.8.0
 crowdstrike-falconpy==1.5.3
 jira==3.8.0
-pycurl==7.45.6
