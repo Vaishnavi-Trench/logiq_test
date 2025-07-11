@@ -1433,17 +1433,62 @@ async def sentinel_get_alert_context(
             Logger.info(f"Alert Context: {alert_context}")
             final_enriched_alert_context = await enrich_alert_context(intcid, rag_enriched_alert_context, aid)
 
+        # Transform source_ip format before returning
         if final_enriched_alert_context:
+            final_enriched_alert_context = transform_source_ip_format(final_enriched_alert_context)
             Logger.info("Successfully enriched alert context with user details.")
             return final_enriched_alert_context
         else:
+            rag_enriched_alert_context = transform_source_ip_format(rag_enriched_alert_context)
             Logger.info("No user enrichment performed. Returning basic alert context.")
             return rag_enriched_alert_context
+        
+    
     except Exception as e:
         Logger.error(
             f"Error during Sentinel context extraction: {e}\n{traceback.format_exc()}"
         )
         return {"error": f"An unexpected error occurred during context extraction: {e}"}
+
+
+def transform_source_ip_format(alert_context: dict) -> dict:
+    """Transforms source_ip field from discovered_ip_addresses format to standard format.
+    
+    Args:
+        alert_context: The alert context dictionary
+        
+    Returns:
+        The transformed alert context with source_ip in standard format
+    """
+    if not isinstance(alert_context, dict):
+        return alert_context
+        
+    # Check if extracted_fields exists and has source_ip
+    extracted_fields = alert_context.get("extracted_fields", {})
+    if not extracted_fields or "source_ip" not in extracted_fields:
+        return alert_context
+        
+    source_ip_field = extracted_fields["source_ip"]
+    
+    # Check if it has the discovered_ip_addresses format
+    if isinstance(source_ip_field, dict) and "discovered_ip_addresses" in source_ip_field:
+        discovered_ips = source_ip_field["discovered_ip_addresses"]
+        
+        # Transform to standard format if discovered_ip_addresses is a non-empty list
+        if isinstance(discovered_ips, list) and discovered_ips:
+            first_ip = discovered_ips[0]
+            
+            # Create the new format
+            extracted_fields["source_ip"] = {
+                "description": "Source IP address involved",
+                "field_name": "alert.Entities[1].Address",
+                "value": first_ip,
+                "confidence": "high"
+            }
+            
+            Logger.info(f"Transformed source_ip from discovered_ip_addresses format to standard format: {first_ip}")
+    
+    return alert_context
 
 
 def transform_alert_context(input_data: dict) -> dict:
