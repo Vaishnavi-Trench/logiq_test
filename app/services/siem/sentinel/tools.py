@@ -1452,14 +1452,20 @@ async def sentinel_get_alert_context(
 
 
 def transform_source_ip_format(alert_context: dict) -> dict:
-    """Transforms source_ip field from discovered_ip_addresses format to standard format.
+    """Transforms source_ip field to clean format with only valid IP addresses.
+    
+    Handles two cases:
+    1. discovered_ip_addresses format -> standard format 
+    2. Standard format with array values -> clean single IP value
     
     Args:
         alert_context: The alert context dictionary
         
     Returns:
-        The transformed alert context with source_ip in standard format
+        The transformed alert context with source_ip in clean standard format
     """
+    import re
+    
     if not isinstance(alert_context, dict):
         return alert_context
         
@@ -1470,7 +1476,7 @@ def transform_source_ip_format(alert_context: dict) -> dict:
         
     source_ip_field = extracted_fields["source_ip"]
     
-    # Check if it has the discovered_ip_addresses format
+    # Case 1: Check if it has the discovered_ip_addresses format
     if isinstance(source_ip_field, dict) and "discovered_ip_addresses" in source_ip_field:
         discovered_ips = source_ip_field["discovered_ip_addresses"]
         
@@ -1487,6 +1493,38 @@ def transform_source_ip_format(alert_context: dict) -> dict:
             }
             
             Logger.info(f"Transformed source_ip from discovered_ip_addresses format to standard format: {first_ip}")
+    
+    # Case 2: Check if it has standard format but with array value containing mixed data
+    elif isinstance(source_ip_field, dict) and "value" in source_ip_field:
+        value = source_ip_field["value"]
+        
+        # If value is a list, find the first valid IP address
+        if isinstance(value, list):
+            # IP address regex pattern
+            ip_pattern = re.compile(r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$')
+            
+            valid_ip = None
+            for item in value:
+                if isinstance(item, str) and item.strip():  # Non-empty string
+                    if ip_pattern.match(item.strip()):
+                        valid_ip = item.strip()
+                        break
+            
+            # If we found a valid IP, update the field
+            if valid_ip:
+                source_ip_field["value"] = valid_ip
+                source_ip_field["confidence"] = "high"
+                source_ip_field["field_name"] = "alert.Entities[1].Address"
+                Logger.info(f"Cleaned source_ip value from array to single IP: {valid_ip}")
+            else:
+                # No valid IP found, keep the first non-empty value or set to empty
+                non_empty_values = [item for item in value if isinstance(item, str) and item.strip()]
+                if non_empty_values:
+                    source_ip_field["value"] = non_empty_values[0]
+                    Logger.info(f"No valid IP found, using first non-empty value: {non_empty_values[0]}")
+                else:
+                    source_ip_field["value"] = ""
+                    Logger.info("No valid data found in source_ip array, setting to empty")
     
     return alert_context
 
