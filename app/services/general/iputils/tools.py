@@ -153,7 +153,7 @@ def is_blocklist_ip(ip_address: str, intcid: str = None) -> dict:
     """
     main_db = PropX.get_property("module.integration.config.db")
     collection_name = PropX.get_property("module.configurations.collection")
-    query = {"listType": "blocklist", "intcid": intcid} if intcid else {"listType": "blocklist"}
+    query = {"listType": "blacklist", "intcid": intcid} if intcid else {"listType": "blacklist"}
     blocklist_entries = MongoDBManager.get_record_by_multiple_fields(main_db, collection_name, query)
     blocklist_entries = flatten_dicts_only(blocklist_entries)
     # Defensive: ensure all entries are dicts
