@@ -38,14 +38,23 @@ class Impacted_AssetsAnalysis(BaseModel):
     hosts: List[str] = Field(description="List of impacted hosts")
     emails: List[str] = Field(description="List of impacted email addresses")
 
-
+class RemediationAction(BaseModel):
+    """
+    Remediation action model to store individual action details.
+    """
+    action: str = Field(
+        description="The remediation action to be taken."
+    )
+    priority: str = Field(
+        description="Priority of the remediation action, high/medium/low."
+    )
 class Remediations(BaseModel):
     """
     Remediation model to store remediation details.
     """
 
-    actions: list[dict[str, Any]] = Field(
-        description="List of remediation actions to be taken. Each action should include 'action' and 'priority'."
+    actions: list[RemediationAction] = Field(
+        description="List of remediation actions to be taken."
     )
 
 
