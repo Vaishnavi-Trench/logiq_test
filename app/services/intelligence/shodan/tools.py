@@ -34,4 +34,3 @@ async def fetch_shodan_host_intelligence(intcid: str, ip_address: str) -> Dict[s
         return {"status": False, "description": f"An unexpected error occurred: {str(e)}"}
 
 # --- The search_shodan_intelligence function has been REMOVED ---
-# as it is no longer used.
